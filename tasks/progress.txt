@@ -193,3 +193,16 @@
   - `chrome.storage.sync` stores API URL (synced), `chrome.storage.local` stores cache (per-device)
   - Settings panel uses transient "saved" state with 2s timeout for user feedback
 ---
+
+## 2026-03-28 - US-012
+- Updated `DecisionLog` interface in `extensao-phishing/src/utils/logger.ts`: added `source: AnalysisSource` field, removed `featuresUsed` field
+- Added `AnalysisSource` type export (`"blacklist" | "whitelist" | "cache" | "api" | "offline"`) in logger.ts
+- Updated `logDecision` message from "GBM" to "DomURLs-BERT" and added source info
+- Fixed `inference.ts` logDecision call to use `source: "api"` instead of `featuresUsed` (keeps typecheck passing until US-013 deletes the file)
+- Updated confidence comment from "0-1" to "0-100" to reflect API percentage scale
+- Files changed: `extensao-phishing/src/utils/logger.ts`, `extensao-phishing/src/utils/inference.ts`
+- **Learnings for future iterations:**
+  - `AnalysisSource` is now defined in both `background.ts` and `logger.ts` — they are identical union types; US-013 cleanup could consolidate
+  - `inference.ts` still references logger — needed minimal fix to keep typecheck green before US-013 deletes it
+  - DecisionLog is only actively used in inference.ts (legacy); new pipeline doesn't call `logDecision` yet — future work could wire it into background.ts
+---
