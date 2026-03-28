@@ -1,0 +1,24 @@
+## Codebase Patterns
+- API code lives in `/workspace/phishing-api/app.py` (single-file FastAPI app)
+- Model files in `/workspace/phishing-api/model/` (DomURLs-BERT, 422MB safetensors)
+- Extension code in `/workspace/extensao-phishing/` using Plasmo framework (Chrome MV3)
+- Training used `max_length=128` (see `model/training_metadata.json`) but current code uses 512 - must fix in US-002
+- Python environment in sandbox has no pip/packages - use AST-based structural validation for Python checks
+- Node.js 20 available with npm; extension has node_modules already installed
+- No network access from sandbox - cannot install packages or reach external services
+
+---
+
+## 2026-03-28 - US-001
+- Rewrote `phishing-api/app.py`: new `PhishingRequest` (url + client_features with 11 fields), new `PhishingResponse` (url, is_phishing, confidence, label, analysis, inference_ms)
+- Removed all RF/ensemble logic: `analyze_predictions`, `CONFIDENCE_THRESHOLD`, `rf_confidence`, `rf_prediction`, `model_used` fields
+- Added CORS middleware (configurable via `CORS_ORIGINS` env var, default `*`)
+- Updated `/health` to return `version` and `device`
+- Rewrote `test_api.py` with pytest + FastAPI TestClient (mocked model), 14 test cases covering schema, predictions, CORS, and RF removal verification
+- Files changed: `phishing-api/app.py`, `phishing-api/test_api.py`
+- **Learnings for future iterations:**
+  - `create_feature_text` still uses the wrong format (`URL: ... | key: value`) - US-002 must fix to training format `[URL]...[WHOIS]...[EXTRA]...`
+  - `max_length=512` left as-is with TODO comment for US-002 to change to 128
+  - Sandbox has no pip/pytest - tests validated structurally via AST; full pytest run requires Docker or external env
+  - The model's `config.json` says max_position_embeddings=512 but training used max_length=128 - important distinction
+---
