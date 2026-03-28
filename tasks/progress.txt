@@ -173,3 +173,23 @@
   - The old `PredictionResult.confidencePct` was a pre-formatted string; new code formats confidence inline
   - Offline detection uses `result.offline` boolean from `AnalysisResult` — check before banner logic
 ---
+
+## 2026-03-28 - US-011
+- Rewrote `extensao-phishing/src/popup.tsx` to use API-based pipeline instead of local ONNX model
+- Popup now fetches result from background via GET_RESULT message (no model loading)
+- Shows result card: PHISHING (red), LEGÍTIMO (green), or API Offline (orange)
+- Shows confidence bar (0-100%), analysis text, and source (blacklist/whitelist/cache/api/offline)
+- Header shows API online/offline status indicator (green/red dot) via GET_API_STATUS
+- Settings panel with configurable API URL field (calls SET_API_URL) and Clear Cache button (calls CLEAR_CACHE)
+- Header subtitle changed to "DomURLs-BERT via API"
+- Metrics row shows: result label, source, and "DomURLs-BERT" as analysis engine
+- Removed all imports of inference.ts, features.ts, FEATURE_ORDER, PredictionResult, DecisionLog
+- Updated popup.css: added API status dot, offline card, settings panel, API URL input styles
+- Files changed: `extensao-phishing/src/popup.tsx`, `extensao-phishing/src/popup.css`
+- **Learnings for future iterations:**
+  - API confidence is 0-100 (percentage), so ConfidenceBar uses value directly (no `* 100` conversion)
+  - GET_RESULT expects `{ tabId }` — popup gets active tab ID via `chrome.tabs.query`
+  - `AnalysisResult` and `AnalysisSource` types are exported from `background.ts`
+  - `chrome.storage.sync` stores API URL (synced), `chrome.storage.local` stores cache (per-device)
+  - Settings panel uses transient "saved" state with 2s timeout for user feedback
+---
