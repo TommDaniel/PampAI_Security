@@ -3,16 +3,20 @@
  *
  * Responsabilidades:
  *   - Captura a URL da página ao carregar
- *   - Envia para o background (service worker) analisar
- *   - Se phishing: injeta banner de aviso no topo da página
- *   - Se confiança baixa: injeta banner de atenção (amarelo)
+ *   - Extrai 11 client_features via clientFeatures.ts
+ *   - Envia { url, features } para o background (service worker) analisar
+ *   - Se phishing: injeta banner de aviso no topo da página (vermelho)
+ *   - Se confiança baixa: injeta banner de atenção (laranja)
+ *   - Se offline: não injeta nada (fail-open)
  *
  * Fluxo:
- *   página carrega → sendMessage(ANALYZE_URL) → background → resultado
+ *   página carrega → extractClientFeatures(url) → sendMessage(ANALYZE_URL, { url, features })
+ *                 → background → resultado
  *                 ← se phishing: showBanner(result)
  */
 
-import type { PredictionResult } from "../utils/inference"
+import { extractClientFeatures } from "../utils/clientFeatures"
+import type { AnalysisResult } from "../background"
 
 const BANNER_ID = "phishing-detector-banner"
 
@@ -32,22 +36,31 @@ const BANNER_ID = "phishing-detector-banner"
   ) return
 
   try {
-    const response = await chrome.runtime.sendMessage({ type: "ANALYZE_URL", url })
+    const features = extractClientFeatures(url)
+
+    const response = await chrome.runtime.sendMessage({
+      type: "ANALYZE_URL",
+      url,
+      features
+    })
 
     if (!response?.success) return
 
-    const result: PredictionResult = response.result
+    const result: AnalysisResult = response.result
+
+    // Offline — fail-open, no banner
+    if (result.offline) return
 
     if (result.isPhishing) {
       showBanner(result, "danger")
-    } else if (result.confidence < 0.7) {
-      // Confiança abaixo do threshold — aviso amarelo
+    } else if (result.confidence < 70) {
+      // Confiança abaixo de 70% — aviso laranja
       showBanner(result, "warning")
     }
     // Legítimo com alta confiança: não injeta nada (não atrapalha o usuário)
 
   } catch {
-    // Service worker pode ainda estar carregando o modelo — sem erro visível
+    // Service worker pode ainda estar carregando — sem erro visível
   }
 })()
 
@@ -57,7 +70,7 @@ const BANNER_ID = "phishing-detector-banner"
 
 type BannerType = "danger" | "warning"
 
-function showBanner(result: PredictionResult, type: BannerType) {
+function showBanner(result: AnalysisResult, type: BannerType) {
   // Remove banner anterior se existir
   document.getElementById(BANNER_ID)?.remove()
 
@@ -84,7 +97,7 @@ function showBanner(result: PredictionResult, type: BannerType) {
 
   // Ícone
   const icon = document.createElement("span")
-  icon.textContent = isDanger ? "⚠" : "ℹ"
+  icon.textContent = isDanger ? "\u26A0" : "\u2139"
   icon.style.cssText = "font-size:18px; flex-shrink:0;"
 
   // Texto principal
@@ -113,11 +126,11 @@ function showBanner(result: PredictionResult, type: BannerType) {
     font-size: 11px;
     font-weight: 700;
   `
-  conf.textContent = result.confidencePct
+  conf.textContent = `${result.confidence.toFixed(1)}%`
 
   // Botão fechar
   const closeBtn = document.createElement("button")
-  closeBtn.textContent = "✕"
+  closeBtn.textContent = "\u2715"
   closeBtn.style.cssText = `
     flex-shrink:0;
     background: rgba(0,0,0,0.2);
