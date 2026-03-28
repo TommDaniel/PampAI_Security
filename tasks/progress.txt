@@ -4,7 +4,10 @@
 - Extension code in `/workspace/extensao-phishing/` using Plasmo framework (Chrome MV3)
 - Training format: `[URL] <url> [WHOIS] unknown [EXTRA] key=val key=val ...` (see `benchmark-modelos/criar_dataset_multimodal.py`)
 - Training used `max_length=128` (see `model/training_metadata.json`) - now correctly set in app.py
-- `create_feature_text` has `whois_text` param ready for US-003 WHOIS integration
+- `create_feature_text` accepts `server_features: ServerFeatures` param for full feature integration
+- Server-side features in `server_features.py`: WHOIS (cache + live), DNS (MX/NS/SPF/A), HTTP redirects
+- Feature order in [EXTRA] must match training: redirects, length, dom_length, dot, hyphen, slash, at, params, shortened, tls, dom_age, dom_expire, mx_servers, nameservers, dom_google_index, dom_spf, dom_in_ip, vowels_domain, srv_client, email
+- Features with value -1 (unknown/failed) are omitted from [EXTRA] text
 - Python environment in sandbox has no pip/packages - use AST-based structural validation for Python checks
 - Node.js 20 available with npm; extension has node_modules already installed
 - No network access from sandbox - cannot install packages or reach external services
@@ -38,4 +41,24 @@
   - Training used `[WHOIS] unknown` (not `not_found`) for missing WHOIS data - must use same string
   - The `whois_text` param in `create_feature_text` is ready for US-003 to inject real WHOIS data
   - Two dataset sources had different formats: GregaVrbancic had `[EXTRA]` features, Brazilian had `[EXTRA] none` with WHOIS tokens
+---
+
+## 2026-03-28 - US-003
+- Created `phishing-api/server_features.py` with async WHOIS, DNS, and redirect extraction
+- WHOIS: local cache (whois_cache.json, 5798 entries) loaded once at startup, live fallback via python-whois with 3s timeout
+- DNS: MX servers, nameservers, SPF (TXT), A record queries via dnspython with 2s timeout each
+- HTTP redirects: counted via httpx async client with 5s timeout
+- All lookups parallelized with `asyncio.gather`, individual failures return defaults (-1)
+- Updated `create_feature_text` to accept `ServerFeatures` and produce correct training feature order (20 features)
+- Features with value -1 (unknown/failed) are omitted from [EXTRA] to match training behavior (NaN features were skipped)
+- `predict_phishing` is now async and calls `extract_server_features` before inference
+- Added `python-whois`, `dnspython`, `httpx` to requirements.txt
+- Added 13 new test cases: domain extraction, WHOIS text building, cache lookup, ServerFeatures defaults, graceful failure
+- Files changed: `phishing-api/server_features.py` (new), `phishing-api/app.py`, `phishing-api/test_api.py`, `phishing-api/requirements.txt`
+- **Learnings for future iterations:**
+  - The training data omits features with NaN/None values entirely (not set to -1 or 0), so we omit -1 values from [EXTRA]
+  - `predict_phishing` is now async — any future callers must await it
+  - The mock in test_api.py patches `app.extract_server_features` to return default ServerFeatures, so predict endpoint tests don't need network
+  - WHOIS cache is loaded in-memory once — for US-005 Docker, the cache file must be in the model volume
+  - `domain_google_index` is always -1 and always omitted from text (matches training where it was always -1)
 ---
