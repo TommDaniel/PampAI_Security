@@ -203,6 +203,112 @@ class TestNoRFLogic:
         assert "rf_prediction" not in source
 
 
+class TestPredictBatchEndpoint:
+    def test_batch_returns_200(self):
+        _set_model_output([2.0, -2.0])
+        # Mock for batch: model returns logits for N inputs
+        import app as app_module
+        mock_output = MagicMock()
+        mock_output.logits = torch.tensor([[2.0, -2.0], [2.0, -2.0]])
+        app_module.model.__call__ = MagicMock(return_value=mock_output)
+        app_module.model.return_value = mock_output
+
+        response = client.post("/predict-batch", json=[SAMPLE_REQUEST, SAMPLE_REQUEST])
+        assert response.status_code == 200
+
+    def test_batch_returns_correct_count(self):
+        import app as app_module
+        mock_output = MagicMock()
+        mock_output.logits = torch.tensor([[2.0, -2.0], [-2.0, 2.0], [2.0, -2.0]])
+        app_module.model.__call__ = MagicMock(return_value=mock_output)
+        app_module.model.return_value = mock_output
+
+        batch = [SAMPLE_REQUEST, PHISHING_REQUEST, SAMPLE_REQUEST]
+        response = client.post("/predict-batch", json=batch)
+        data = response.json()
+        assert len(data) == 3
+
+    def test_batch_preserves_order(self):
+        import app as app_module
+        # First legitimate, second phishing
+        mock_output = MagicMock()
+        mock_output.logits = torch.tensor([[3.0, -3.0], [-3.0, 3.0]])
+        app_module.model.__call__ = MagicMock(return_value=mock_output)
+        app_module.model.return_value = mock_output
+
+        batch = [SAMPLE_REQUEST, PHISHING_REQUEST]
+        response = client.post("/predict-batch", json=batch)
+        data = response.json()
+
+        assert data[0]["url"] == SAMPLE_REQUEST["url"]
+        assert data[0]["is_phishing"] is False
+        assert data[0]["label"] == "LEGITIMO"
+
+        assert data[1]["url"] == PHISHING_REQUEST["url"]
+        assert data[1]["is_phishing"] is True
+        assert data[1]["label"] == "PHISHING"
+
+    def test_batch_response_schema(self):
+        import app as app_module
+        mock_output = MagicMock()
+        mock_output.logits = torch.tensor([[2.0, -2.0]])
+        app_module.model.__call__ = MagicMock(return_value=mock_output)
+        app_module.model.return_value = mock_output
+
+        response = client.post("/predict-batch", json=[SAMPLE_REQUEST])
+        data = response.json()
+        item = data[0]
+
+        assert "url" in item
+        assert "is_phishing" in item
+        assert "confidence" in item
+        assert "label" in item
+        assert "analysis" in item
+        assert "inference_ms" in item
+
+    def test_batch_five_urls(self):
+        """Acceptance criteria: batch of 5 URLs works correctly."""
+        import app as app_module
+        mock_output = MagicMock()
+        # 5 URLs: 3 legit, 2 phishing
+        mock_output.logits = torch.tensor([
+            [3.0, -3.0],  # legit
+            [-3.0, 3.0],  # phishing
+            [3.0, -3.0],  # legit
+            [-3.0, 3.0],  # phishing
+            [3.0, -3.0],  # legit
+        ])
+        app_module.model.__call__ = MagicMock(return_value=mock_output)
+        app_module.model.return_value = mock_output
+
+        batch = [SAMPLE_REQUEST] * 3 + [PHISHING_REQUEST] * 2
+        # Fix URLs to be unique for clarity
+        batch_with_urls = []
+        for i, req in enumerate(batch):
+            r = dict(req)
+            r["url"] = f"https://test{i}.com"
+            batch_with_urls.append(r)
+
+        response = client.post("/predict-batch", json=batch_with_urls)
+        data = response.json()
+
+        assert len(data) == 5
+        assert data[0]["is_phishing"] is False
+        assert data[1]["is_phishing"] is True
+        assert data[2]["is_phishing"] is False
+        assert data[3]["is_phishing"] is True
+        assert data[4]["is_phishing"] is False
+
+    def test_batch_empty_returns_empty(self):
+        response = client.post("/predict-batch", json=[])
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_batch_invalid_request_returns_422(self):
+        response = client.post("/predict-batch", json=[{"url": "https://test.com"}])
+        assert response.status_code == 422
+
+
 class TestFeatureTextFormat:
     """Validate create_feature_text matches training format."""
 

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import logging
@@ -198,21 +198,7 @@ async def predict_phishing(url: str, client_features: ClientFeatures) -> tuple:
     confidence = phishing_prob if is_phishing else 1.0 - phishing_prob
 
     label = "PHISHING" if is_phishing else "LEGITIMO"
-
-    if is_phishing:
-        if confidence >= 0.9:
-            analysis = f"URL classificada como PHISHING com alta confianca ({confidence:.1%}). DomURLs-BERT identificou padroes fortemente suspeitos."
-        elif confidence >= 0.7:
-            analysis = f"URL classificada como PHISHING ({confidence:.1%}). DomURLs-BERT detectou caracteristicas suspeitas."
-        else:
-            analysis = f"URL classificada como PHISHING com baixa confianca ({confidence:.1%}). Recomenda-se cautela."
-    else:
-        if confidence >= 0.9:
-            analysis = f"URL classificada como LEGITIMA com alta confianca ({confidence:.1%})."
-        elif confidence >= 0.7:
-            analysis = f"URL classificada como LEGITIMA ({confidence:.1%})."
-        else:
-            analysis = f"URL classificada como LEGITIMA com baixa confianca ({confidence:.1%}). Recomenda-se cautela."
+    analysis = _build_analysis(is_phishing, confidence)
 
     inference_ms = (time.perf_counter() - start_time) * 1000
 
@@ -233,6 +219,121 @@ async def health_check():
         "device": device,
         "version": API_VERSION,
     }
+
+
+def _build_analysis(is_phishing: bool, confidence: float) -> str:
+    """Build analysis text for a prediction result."""
+    if is_phishing:
+        if confidence >= 0.9:
+            return f"URL classificada como PHISHING com alta confianca ({confidence:.1%}). DomURLs-BERT identificou padroes fortemente suspeitos."
+        elif confidence >= 0.7:
+            return f"URL classificada como PHISHING ({confidence:.1%}). DomURLs-BERT detectou caracteristicas suspeitas."
+        else:
+            return f"URL classificada como PHISHING com baixa confianca ({confidence:.1%}). Recomenda-se cautela."
+    else:
+        if confidence >= 0.9:
+            return f"URL classificada como LEGITIMA com alta confianca ({confidence:.1%})."
+        elif confidence >= 0.7:
+            return f"URL classificada como LEGITIMA ({confidence:.1%})."
+        else:
+            return f"URL classificada como LEGITIMA com baixa confianca ({confidence:.1%}). Recomenda-se cautela."
+
+
+async def predict_batch_phishing(
+    requests: List[PhishingRequest],
+) -> List[tuple]:
+    """
+    Batch prediction using DomURLs-BERT.
+    Extracts server features in parallel, tokenizes all inputs at once,
+    and runs a single model forward pass.
+
+    Returns:
+        List of (is_phishing, confidence, label, analysis, inference_ms) tuples.
+    """
+    import asyncio
+
+    start_time = time.perf_counter()
+
+    # 1. Extract server features for all URLs in parallel
+    server_feats_list = await asyncio.gather(
+        *[extract_server_features(req.url) for req in requests]
+    )
+
+    # 2. Build feature texts
+    feature_texts = [
+        create_feature_text(req.url, req.client_features, server_features=sf)
+        for req, sf in zip(requests, server_feats_list)
+    ]
+
+    # 3. Batch tokenize
+    inputs = tokenizer(
+        feature_texts,
+        return_tensors="pt",
+        truncation=True,
+        max_length=128,
+        padding=True,
+    )
+
+    device = next(model.parameters()).device
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    # 4. Single model forward pass
+    with torch.no_grad():
+        outputs = model(**inputs)
+        logits = outputs.logits
+        probabilities = torch.softmax(logits, dim=-1)
+
+    inference_ms = (time.perf_counter() - start_time) * 1000
+
+    # 5. Build results
+    results = []
+    for i in range(len(requests)):
+        phishing_prob = probabilities[i][1].item()
+        is_phishing = phishing_prob > 0.5
+        confidence = phishing_prob if is_phishing else 1.0 - phishing_prob
+        label = "PHISHING" if is_phishing else "LEGITIMO"
+        analysis = _build_analysis(is_phishing, confidence)
+        results.append((is_phishing, confidence, label, analysis, round(inference_ms, 2)))
+
+    return results
+
+
+@app.post("/predict-batch", response_model=List[PhishingResponse])
+async def predict_batch(requests: List[PhishingRequest]):
+    """
+    Batch prediction endpoint.
+    Accepts array of PhishingRequest and returns array of PhishingResponse in same order.
+    """
+    if model is None or tokenizer is None:
+        raise HTTPException(status_code=503, detail="Modelo nao carregado")
+
+    if not requests:
+        return []
+
+    try:
+        results = await predict_batch_phishing(requests)
+
+        responses = []
+        for req, (is_phishing, confidence, label, analysis, inference_ms) in zip(requests, results):
+            responses.append(PhishingResponse(
+                url=req.url,
+                is_phishing=is_phishing,
+                confidence=confidence,
+                label=label,
+                analysis=analysis,
+                inference_ms=inference_ms,
+            ))
+
+        logger.info(
+            f"Batch predicao: {len(requests)} URLs | "
+            f"Inferencia total: {results[0][4]:.1f}ms"
+        )
+
+        return responses
+
+    except Exception as e:
+        logger.error(f"Erro na predicao batch: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro na predicao batch: {str(e)}")
 
 
 @app.post("/predict", response_model=PhishingResponse)
