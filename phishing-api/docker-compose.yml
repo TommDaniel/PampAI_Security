@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  phishing-api:
+    build: .
+    container_name: phishing-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Permite hot-reload durante desenvolvimento
+      - ./app.py:/app/app.py
+      - ./model:/app/model
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CONFIDENCE_THRESHOLD=0.7
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

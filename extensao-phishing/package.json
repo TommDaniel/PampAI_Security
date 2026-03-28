@@ -1,0 +1,40 @@
+{
+  "name": "extensao-phishing",
+  "displayName": "Detector de Phishing",
+  "version": "1.0.0",
+  "description": "Extensão para detecção de phishing em URLs usando modelo GBM local (ONNX)",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package"
+  },
+  "dependencies": {
+    "plasmo": "0.89.4",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "onnxruntime-web": "1.14.0",
+    "tldts": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/react": "18.2.0",
+    "@types/react-dom": "18.2.0",
+    "typescript": "5.3.3"
+  },
+  "overrides": {
+    "sharp": "^0.33.5"
+  },
+  "manifest": {
+    "host_permissions": ["<all_urls>"],
+    "permissions": ["tabs", "storage", "notifications"],
+    "content_security_policy": {
+      "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    },
+    "web_accessible_resources": [
+      {
+        "resources": ["assets/modelo/*.onnx", "assets/*.wasm", "assets/*.js", "assets/blacklist.json", "assets/Icone.png"],
+        "matches": ["<all_urls>"]
+      }
+    ]
+  }
+}

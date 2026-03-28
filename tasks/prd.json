@@ -1,0 +1,251 @@
+{
+  "project": "Anti-Phishing DomURLs-BERT API",
+  "branchName": "ralph/anti-phishing-domurls-bert-api",
+  "description": "Migrate Chrome anti-phishing extension from local GBM/ONNX inference to client-server architecture with DomURLs-BERT model via FastAPI, improving F1 from 87.27% to ~91.72% while reducing extension size from ~95MB to ~26MB.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Rewrite API request/response and remove RF logic",
+      "description": "As a developer, I need to rewrite the FastAPI app to accept the new request format (URL + client_features) and return the new response format, removing all Random Forest / fallback logic.",
+      "acceptanceCriteria": [
+        "PhishingRequest accepts { url: string, client_features: { length, dom_length, dot, hyphen, slash, at, params, shortened, tls, vowels_domain, email } }",
+        "PhishingResponse returns { url, is_phishing, confidence, label, analysis, inference_ms }",
+        "All RF logic removed (analyze_predictions, RF fields, sklearn imports)",
+        "Endpoint POST /predict functional",
+        "Endpoint GET /health returns model status, device (CPU/GPU), version",
+        "CORS middleware added (origins configurable, default *)",
+        "Tests with pytest pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "API lives in phishing-api/ directory. Remove all Random Forest / fallback logic."
+    },
+    {
+      "id": "US-002",
+      "title": "Fix model input text format to match training",
+      "description": "As a developer, I need to fix the create_feature_text function to match the training format, fixing the critical bug where the current format doesn't match what the model was trained on.",
+      "acceptanceCriteria": [
+        "Text follows format: [URL] <url> [AGE] <dias>d [REG] <registrar> [EXPIRE] <dias>d [WHOIS] found|not_found [EXTRA] redirects=N tls=N dot=N ...",
+        "Tokenizer max_length corrected from 512 to 128",
+        "When WHOIS not available, uses [WHOIS] not_found and default values for age/reg/expire",
+        "Feature domain_google_index removed (fixed value -1 or omitted from text)",
+        "Unit test validates generated text format against training dataset examples",
+        "Tests with pytest pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Critical bug fix - model performance depends on matching training format exactly."
+    },
+    {
+      "id": "US-003",
+      "title": "Add server-side feature extraction (WHOIS + DNS)",
+      "description": "As a developer, I need the API to extract server-side features (WHOIS data, DNS records, redirects) that cannot be obtained from the browser extension.",
+      "acceptanceCriteria": [
+        "WHOIS lookup with local cache (whois_cache.json), live fallback with 3s timeout",
+        "DNS queries: MX servers, nameservers, SPF record, A record - 2s timeout each",
+        "HTTP redirect chain counting",
+        "Features extracted: redirects, dom_age, dom_expire, mx_servers, nameservers, dom_spf, dom_in_ip, srv_client",
+        "domain_google_index returns fixed -1 (feature removed)",
+        "Failure in any individual lookup does not block response (uses default -1)",
+        "Latency p95 < 500ms with cached WHOIS",
+        "Tests with pytest pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Use asyncio.gather to parallelize WHOIS/DNS lookups."
+    },
+    {
+      "id": "US-004",
+      "title": "Add batch prediction endpoint",
+      "description": "As a developer, I need a batch prediction endpoint for efficiency when multiple URLs need analysis.",
+      "acceptanceCriteria": [
+        "Endpoint POST /predict-batch accepts array of requests",
+        "Returns array of responses in same order",
+        "Tokenization in batch (not N sequential model calls)",
+        "Test with batch of 5 URLs works correctly",
+        "Tests with pytest pass",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Dockerize the API",
+      "description": "As a developer, I need the API deployable as a Docker container for easy deployment.",
+      "acceptanceCriteria": [
+        "Dockerfile functional with dependencies (torch, transformers, fastapi, whois, dnspython)",
+        "docker-compose.yml with port and volume configuration for model",
+        "Container starts and responds on /health without errors",
+        "Minimal documentation on how to start (docker-compose up)",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create clientFeatures.ts module",
+      "description": "As a developer, I need a new TypeScript module that extracts the 11 client-side features from a URL, replacing the old features.ts (51 features do GBM).",
+      "acceptanceCriteria": [
+        "File src/utils/clientFeatures.ts created",
+        "Extracts all 11 features: length, dom_length, dot, hyphen, slash, at, params, shortened, tls, vowels_domain, email",
+        "shortened checks against list of known shorteners (bit.ly, tinyurl, t.co, etc.)",
+        "email uses regex to detect email in URL",
+        "Exported function: extractClientFeatures(url: string): ClientFeatures",
+        "Interface ClientFeatures exported with 11 fields typed as number",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Extension lives in extensao-phishing/ directory."
+    },
+    {
+      "id": "US-007",
+      "title": "Create api.ts HTTP client module",
+      "description": "As a developer, I need an API client module for the extension to communicate with the FastAPI backend.",
+      "acceptanceCriteria": [
+        "File src/utils/api.ts created",
+        "Function analyzeUrl(url: string, features: ClientFeatures): Promise<ApiResponse> exported",
+        "Function checkHealth(): Promise<HealthResponse> exported",
+        "5-second timeout on all calls",
+        "API URL configurable via chrome.storage.sync (default: http://localhost:8000)",
+        "Network errors return { offline: true } instead of throw",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create cache.ts module",
+      "description": "As a developer, I need a URL analysis cache to avoid repeated API calls for frequently visited URLs.",
+      "acceptanceCriteria": [
+        "File src/utils/cache.ts created",
+        "Interface CacheEntry: { isPhishing, confidence, label, analysis, timestamp }",
+        "Storage: chrome.storage.local under key urlCache",
+        "Lookup key: normalized URL (lowercase hostname, no trailing slash)",
+        "TTL: 24h for LEGITIMATE, 7 days for PHISHING",
+        "Limit: 5000 entries; when exceeded, remove 20% oldest (LRU eviction)",
+        "Exported functions: getCached(url), setCached(url, entry), clearCache()",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Rewrite background.ts orchestrator",
+      "description": "As a developer, I need to rewrite the background service worker to orchestrate the analysis pipeline: whitelist -> blacklist -> cache -> API, replacing the current ONNX-based flow.",
+      "acceptanceCriteria": [
+        "Analysis pipeline: whitelist (instant) -> blacklist (instant) -> cache (instant) -> API call",
+        "Result stored per tab in chrome.storage.session",
+        "Messages supported: ANALYZE_URL, GET_RESULT, GET_API_STATUS, CLEAR_CACHE, SET_API_URL",
+        "ANALYZE_URL receives { url, features } and returns { isPhishing, confidence, label, analysis, source, offline? }",
+        "source indicates origin: blacklist | whitelist | cache | api | offline",
+        "API failure returns { offline: true } (fail-open, no blocking)",
+        "Service Worker restarts without cache loss (cache in storage.local, not in-memory)",
+        "No references to ONNX, inference.ts, or features.ts",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Update detector.ts content script",
+      "description": "As a developer, I need to update the content script to extract client features, send them to the background, and display banners based on API results.",
+      "acceptanceCriteria": [
+        "Ignores internal pages (chrome://, about://, edge://)",
+        "Extracts 11 client_features using clientFeatures.ts",
+        "Sends { type: ANALYZE_URL, url, features } to background",
+        "Phishing detected (any source) -> red banner",
+        "Confidence < 70% -> orange banner (warning)",
+        "Legitimate -> no banner",
+        "Offline -> no banner (fail-open)",
+        "No references to inference.ts or old features.ts",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Rewrite popup.tsx",
+      "description": "As a user, I want to see the analysis result, API status, and have controls to manage cache and API settings when I click the extension icon.",
+      "acceptanceCriteria": [
+        "Remove all ONNX model loading",
+        "Gets result from background via GET_RESULT message",
+        "Shows card with: result (PHISHING/LEGITIMATE), confidence (%), analysis text, source",
+        "Visual indicator for API online/offline (checks via GET_API_STATUS)",
+        "Functional Clear Cache button (calls CLEAR_CACHE)",
+        "Configurable API URL field (calls SET_API_URL)",
+        "Text indicates DomURLs-BERT via API as analysis engine",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Update logger.ts",
+      "description": "As a developer, I need to update the logger to reflect the new analysis sources.",
+      "acceptanceCriteria": [
+        "Field source added: blacklist | whitelist | cache | api | offline",
+        "Field featuresUsed removed (no longer relevant)",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Clean package.json and assets",
+      "description": "As a developer, I need to remove ONNX/WASM dependencies and assets that are no longer needed.",
+      "acceptanceCriteria": [
+        "onnxruntime-web removed from package.json",
+        "tldts removed from package.json (if not used elsewhere)",
+        "wasm-unsafe-eval removed from CSP in manifest",
+        "web_accessible_resources cleaned (remove .onnx and .wasm references)",
+        "Files deleted: src/utils/inference.ts, src/utils/features.ts",
+        "Assets deleted: assets/modelo/modelo_phishing_ort14.onnx, assets/ort*.wasm, assets/ort.min.js, assets/ort.wasm.min.js",
+        "npm install runs without errors",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Be careful not to delete files that are still referenced. Do this after all other extension stories are done."
+    },
+    {
+      "id": "US-014",
+      "title": "End-to-end integration tests",
+      "description": "As a developer, I need to verify the full pipeline works: extension <-> API with all scenarios.",
+      "acceptanceCriteria": [
+        "API starts via docker-compose up without errors",
+        "Extension loads in Chrome without console errors",
+        "Scenario: blacklist hit -> instant red banner, no API call",
+        "Scenario: whitelist hit -> no banner, no API call",
+        "Scenario: unknown URL -> API call, correct result, cached",
+        "Scenario: same URL again -> result from cache, no API call",
+        "Scenario: API offline -> fail-open, popup shows offline",
+        "Scenario: API back online -> next unknown URL uses API normally",
+        "Popup shows correct result for each scenario",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "This is the final validation story. All previous stories must pass first."
+    }
+  ]
+}

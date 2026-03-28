@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.whl
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Modelo (não versionar - muito grande)
+# Descomente se quiser versionar o modelo
+model/
+!model/.gitkeep
