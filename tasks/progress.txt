@@ -137,3 +137,23 @@
   - Eviction sorts all entries by timestamp and removes oldest 20% — simple LRU approximation
   - `CacheEntry.timestamp` is set by the caller (not auto-set), giving flexibility to background.ts
 ---
+
+## 2026-03-28 - US-009
+- Rewrote `extensao-phishing/src/background.ts` to orchestrate analysis pipeline: whitelist → blacklist → cache → API
+- Pipeline implemented in `analyzePipeline()`: checks whitelist first (instant), then blacklist (instant), then cache (instant), then API call
+- Results stored per tab in `chrome.storage.session` under key `tabResults`
+- Messages supported: ANALYZE_URL, GET_RESULT, GET_API_STATUS, CLEAR_CACHE, SET_API_URL
+- ANALYZE_URL receives `{ url, features }` and returns `{ isPhishing, confidence, label, analysis, source, offline? }`
+- Source values: `blacklist | whitelist | cache | api | offline`
+- API failure returns fail-open result (`offline: true`, `isPhishing: false`)
+- Cache stored in `chrome.storage.local` (via cache.ts), survives Service Worker restarts
+- Removed all references to ONNX, inference.ts, PredictionResult
+- Exported `AnalysisResult` and `AnalysisSource` types for use by other modules (popup, detector)
+- Files changed: `extensao-phishing/src/background.ts`
+- **Learnings for future iterations:**
+  - `isWhitelisted` is exported from `blacklist.ts` (same file as `isBlacklisted`) — whitelist is embedded in that module
+  - Tab results use `chrome.storage.session` (cleared when browser closes), distinct from cache in `chrome.storage.local`
+  - `sendResponse` in message listener requires `return true` to keep the port open for async responses
+  - `emitNotification` only fires for phishing detections (not for whitelist/cache/offline)
+  - GET_RESULT expects `{ tabId }` in the message — popup must send the active tab's ID
+---
