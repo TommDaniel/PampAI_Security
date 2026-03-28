@@ -1,81 +1,250 @@
 /**
  * Service Worker (Background) — MV3
  *
- * Responsabilidades:
- *   - Carrega a blacklist ao instalar/iniciar a extensão
- *   - Checa blacklist (O(1)) para o content script — resposta instantânea
- *   - Inferência ONNX é feita no popup (contexto de página real, sem restrições de service worker)
+ * Orchestrates the anti-phishing analysis pipeline:
+ *   whitelist (instant) -> blacklist (instant) -> cache (instant) -> API call
  *
- * Fluxo content script:
- *   detector.ts → ANALYZE_URL → background → blacklist hit? → responde
- *
- * Fluxo popup:
- *   popup.tsx → roda inferência ONNX diretamente no contexto do popup
+ * Results are stored per tab in chrome.storage.session.
+ * Cache is stored in chrome.storage.local (survives SW restarts).
  */
 
-import type { PredictionResult } from "./utils/inference"
-import { loadBlacklist, isBlacklisted } from "./utils/blacklist"
+import type { ClientFeatures } from "./utils/clientFeatures"
+import type { ApiResponse } from "./utils/api"
+import { loadBlacklist, isBlacklisted, isWhitelisted } from "./utils/blacklist"
+import { getCached, setCached, clearCache } from "./utils/cache"
+import { analyzeUrl, checkHealth } from "./utils/api"
 import { logger } from "./utils/logger"
 
-const HIGH_CONFIDENCE_THRESHOLD = 0.85
+export type AnalysisSource = "blacklist" | "whitelist" | "cache" | "api" | "offline"
+
+export interface AnalysisResult {
+  isPhishing: boolean
+  confidence: number
+  label: string
+  analysis: string
+  source: AnalysisSource
+  offline?: boolean
+}
 
 // ============================================================
-// Inicialização — blacklist
+// Initialization — blacklist
 // ============================================================
 
 loadBlacklist()
-  .then(() => logger.info("Service worker iniciado — blacklist pronta"))
-  .catch((err) => logger.error("Falha ao carregar blacklist", { error: String(err) }))
+  .then(() => logger.info("Service worker started — blacklist ready"))
+  .catch((err) => logger.error("Failed to load blacklist", { error: String(err) }))
 
 chrome.runtime.onInstalled.addListener(() => {
   loadBlacklist()
-    .then(() => logger.info("Extensão instalada/atualizada — blacklist recarregada"))
-    .catch((err) => logger.error("Erro no onInstalled", { error: String(err) }))
+    .then(() => logger.info("Extension installed/updated — blacklist reloaded"))
+    .catch((err) => logger.error("Error on onInstalled", { error: String(err) }))
 })
 
 // ============================================================
-// Listener de mensagens
+// Analysis pipeline
+// ============================================================
+
+async function analyzePipeline(
+  url: string,
+  features: ClientFeatures
+): Promise<AnalysisResult> {
+  // 1. Whitelist check (instant)
+  if (isWhitelisted(url)) {
+    logger.info("Whitelist hit", { url })
+    return {
+      isPhishing: false,
+      confidence: 100,
+      label: "LEGITIMATE",
+      analysis: "Known legitimate domain (whitelist).",
+      source: "whitelist"
+    }
+  }
+
+  // 2. Blacklist check (instant)
+  const blacklisted = isBlacklisted(url)
+  if (blacklisted === true) {
+    logger.info("Blacklist hit", { url })
+    return {
+      isPhishing: true,
+      confidence: 100,
+      label: "PHISHING",
+      analysis: "Domain found in known phishing/malware blacklist.",
+      source: "blacklist"
+    }
+  }
+
+  // 3. Cache check (instant)
+  const cached = await getCached(url)
+  if (cached) {
+    logger.info("Cache hit", { url })
+    return {
+      isPhishing: cached.isPhishing,
+      confidence: cached.confidence,
+      label: cached.label,
+      analysis: cached.analysis,
+      source: "cache"
+    }
+  }
+
+  // 4. API call
+  const apiResult = await analyzeUrl(url, features)
+
+  if ("offline" in apiResult) {
+    logger.warn("API offline — fail-open", { url })
+    return {
+      isPhishing: false,
+      confidence: 0,
+      label: "UNKNOWN",
+      analysis: "API unavailable. Fail-open: not blocking.",
+      source: "offline",
+      offline: true
+    }
+  }
+
+  const response = apiResult as ApiResponse
+
+  // Store in cache
+  await setCached(url, {
+    isPhishing: response.is_phishing,
+    confidence: response.confidence,
+    label: response.label,
+    analysis: response.analysis,
+    timestamp: Date.now()
+  })
+
+  logger.info("API result", {
+    url,
+    label: response.label,
+    confidence: response.confidence
+  })
+
+  return {
+    isPhishing: response.is_phishing,
+    confidence: response.confidence,
+    label: response.label,
+    analysis: response.analysis,
+    source: "api"
+  }
+}
+
+// ============================================================
+// Store result per tab
+// ============================================================
+
+async function storeTabResult(
+  tabId: number,
+  result: AnalysisResult & { url: string }
+): Promise<void> {
+  try {
+    const { tabResults = {} } = await chrome.storage.session.get("tabResults")
+    tabResults[tabId] = result
+    await chrome.storage.session.set({ tabResults })
+  } catch {
+    // session storage may not be available
+  }
+}
+
+async function getTabResult(
+  tabId: number
+): Promise<(AnalysisResult & { url: string }) | null> {
+  try {
+    const { tabResults = {} } = await chrome.storage.session.get("tabResults")
+    return tabResults[tabId] ?? null
+  } catch {
+    return null
+  }
+}
+
+// ============================================================
+// Message listener
 // ============================================================
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-
-  // ---- ANALYZE_URL: content script pede análise ----
+  // ---- ANALYZE_URL: content script requests analysis ----
   if (message.type === "ANALYZE_URL") {
     const url: string = message.url
+    const features: ClientFeatures = message.features
+    const tabId = sender.tab?.id
 
-    logger.info("Background recebeu requisição", { url, tabId: sender.tab?.id })
+    logger.info("Analysis requested", { url, tabId })
 
-    const blacklisted = isBlacklisted(url)
+    analyzePipeline(url, features)
+      .then(async (result) => {
+        if (tabId !== undefined) {
+          await storeTabResult(tabId, { ...result, url })
+        }
 
-    if (blacklisted === true) {
-      logger.info("Blacklist hit", { url })
+        if (result.isPhishing) {
+          emitNotification(result)
+        }
 
-      const result: PredictionResult = {
-        url,
-        isPhishing:    true,
-        confidence:    1.0,
-        confidencePct: "100.00%",
-        label:         "PHISHING",
-        analysis:      "Domínio encontrado na blacklist de phishing/malware conhecidos.",
-        inferenceMs:   0,
-      }
+        sendResponse({ success: true, result })
+      })
+      .catch((err) => {
+        logger.error("Analysis failed", { url, error: String(err) })
+        sendResponse({
+          success: true,
+          result: {
+            isPhishing: false,
+            confidence: 0,
+            label: "UNKNOWN",
+            analysis: "Analysis failed. Fail-open: not blocking.",
+            source: "offline" as AnalysisSource,
+            offline: true
+          }
+        })
+      })
 
-      sendResponse({ success: true, result })
-      emitNotification(result)
+    return true // async response
+  }
+
+  // ---- GET_RESULT: popup requests the result for current tab ----
+  if (message.type === "GET_RESULT") {
+    const tabId: number | undefined = message.tabId
+    if (tabId === undefined) {
+      sendResponse({ result: null })
       return true
     }
 
-    // Não está na blacklist — content script não mostra banner (inferência é feita no popup)
-    sendResponse({ success: true, result: null })
+    getTabResult(tabId)
+      .then((result) => sendResponse({ result }))
+      .catch(() => sendResponse({ result: null }))
+
     return true
   }
 
-  // ---- GET_LAST_RESULT: popup pede o último resultado cacheado ----
-  if (message.type === "GET_LAST_RESULT") {
-    chrome.storage.session
-      .get("lastResult")
-      .then((data) => sendResponse({ result: data.lastResult ?? null }))
-      .catch(() => sendResponse({ result: null }))
+  // ---- GET_API_STATUS: popup checks API health ----
+  if (message.type === "GET_API_STATUS") {
+    checkHealth()
+      .then((health) => sendResponse({ health }))
+      .catch(() => sendResponse({ health: { offline: true } }))
+
+    return true
+  }
+
+  // ---- CLEAR_CACHE: popup requests cache clear ----
+  if (message.type === "CLEAR_CACHE") {
+    clearCache()
+      .then(() => {
+        logger.info("Cache cleared by user")
+        sendResponse({ success: true })
+      })
+      .catch(() => sendResponse({ success: false }))
+
+    return true
+  }
+
+  // ---- SET_API_URL: popup updates API URL ----
+  if (message.type === "SET_API_URL") {
+    const apiUrl: string = message.apiUrl
+    chrome.storage.sync
+      .set({ apiUrl })
+      .then(() => {
+        logger.info("API URL updated", { apiUrl })
+        sendResponse({ success: true })
+      })
+      .catch(() => sendResponse({ success: false }))
+
     return true
   }
 })
@@ -84,12 +253,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Helpers
 // ============================================================
 
-function emitNotification(result: PredictionResult) {
+function emitNotification(result: AnalysisResult) {
   chrome.notifications.create({
-    type:     "basic",
-    iconUrl:  "assets/Icone.png",
-    title:    "Phishing detectado",
-    message:  result.analysis,
-    priority: 2,
+    type: "basic",
+    iconUrl: "assets/Icone.png",
+    title: "Phishing detected",
+    message: result.analysis,
+    priority: 2
   })
 }
