@@ -33,6 +33,10 @@ body {
   border-radius: 6px;
 }
 
+.header-info {
+  flex: 1;
+}
+
 .header-title {
   font-size: 14px;
   font-weight: 700;
@@ -43,6 +47,36 @@ body {
   font-size: 11px;
   color: #a0aec0;
   margin-top: 1px;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.header-status-text {
+  font-size: 10px;
+  color: #a0aec0;
+}
+
+/* ---- API status dot ---- */
+.api-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.api-dot-online {
+  background: #48bb78;
+  box-shadow: 0 0 4px #48bb78;
+}
+
+.api-dot-offline {
+  background: #e53e3e;
+  box-shadow: 0 0 4px #e53e3e;
 }
 
 /* ---- Estados de loading / erro ---- */
@@ -71,6 +105,11 @@ body {
 .status-text {
   font-size: 13px;
   color: #4a5568;
+}
+
+.status-text-sub {
+  font-size: 11px;
+  color: #a0aec0;
 }
 
 .url-text {
@@ -110,6 +149,11 @@ body {
   border: 1px solid #c6f6d5;
 }
 
+.result-offline {
+  background: #fffaf0;
+  border: 1px solid #feebc8;
+}
+
 .result-label {
   font-size: 16px;
   font-weight: 700;
@@ -118,6 +162,7 @@ body {
 
 .result-phishing .result-label { color: #c53030; }
 .result-legit   .result-label { color: #276749; }
+.result-offline .result-label { color: #c05621; }
 
 .result-url {
   font-size: 11px;
@@ -238,7 +283,6 @@ body {
 .btn-retry:hover { background: #2b6cb0; }
 
 .btn-clear {
-  margin-top: 8px;
   padding: 5px 10px;
   font-size: 11px;
   background: none;
@@ -250,45 +294,37 @@ body {
 
 .btn-clear:hover { background: #fff5f5; color: #c53030; border-color: #fed7d7; }
 
-/* ---- Histórico ---- */
-.history-item {
+/* ---- Settings ---- */
+.settings-area {
+  margin-top: 6px;
+}
+
+.api-url-row {
   display: flex;
-  align-items: center;
   gap: 6px;
+}
+
+.api-url-input {
+  flex: 1;
   padding: 5px 8px;
-  border-radius: 5px;
-  margin-bottom: 4px;
   font-size: 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  outline: none;
+  color: #2d3748;
 }
 
-.history-phishing { background: #fff5f5; }
-.history-legit    { background: #f0fff4; }
+.api-url-input:focus { border-color: #3182ce; }
 
-.history-badge {
-  font-weight: 700;
-  font-size: 10px;
-  flex-shrink: 0;
+.btn-save {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #3182ce;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
 }
 
-.history-phishing .history-badge { color: #c53030; }
-.history-legit    .history-badge { color: #276749; }
-
-.history-conf {
-  color: #718096;
-  flex-shrink: 0;
-  min-width: 42px;
-}
-
-.history-url {
-  color: #4a5568;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.empty-history {
-  font-size: 12px;
-  color: #a0aec0;
-  text-align: center;
-  padding: 8px 0;
-}
+.btn-save:hover { background: #2b6cb0; }
