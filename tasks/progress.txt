@@ -76,3 +76,16 @@
   - `predict_batch_phishing` shares `inference_ms` across all items (total time, not per-URL)
   - Empty batch returns `[]` directly without hitting the model
 ---
+
+## 2026-03-28 - US-005
+- Updated `Dockerfile`: Python 3.11-slim base, added `curl` for healthcheck, added `COPY server_features.py`, removed model COPY (mounted as volume), set `MODEL_PATH` env var, increased `start-period` to 120s for model loading
+- Updated `docker-compose.yml`: removed deprecated `version` key, removed stale `CONFIDENCE_THRESHOLD` env var, added `MODEL_PATH` and `CORS_ORIGINS` env vars, model mounted as volume `./model:/app/model`, healthcheck uses `curl` instead of Python `requests`
+- Updated `.dockerignore`: exclude test files, Dockerfile, docker-compose.yml, and whois_cache.json from build context
+- Files changed: `phishing-api/Dockerfile`, `phishing-api/docker-compose.yml`, `phishing-api/.dockerignore`
+- **Learnings for future iterations:**
+  - Model is ~422MB so it should be volume-mounted, not COPY'd into the image (keeps image smaller and allows model updates without rebuild)
+  - Healthcheck should use `curl` not Python `requests` (requests not in requirements.txt)
+  - Python 3.14 is too bleeding edge for torch compatibility — use 3.11 for stability
+  - `start-period` of 120s needed because loading the DomURLs-BERT model takes time on first start
+  - The deprecated `version` key in docker-compose.yml should be removed (Docker Compose V2+ doesn't need it)
+---
