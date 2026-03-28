@@ -11,6 +11,8 @@ import logging
 import os
 from pathlib import Path
 
+from server_features import ServerFeatures, extract_server_features
+
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -111,37 +113,68 @@ def create_feature_text(
     url: str,
     client_features: ClientFeatures,
     whois_text: str = "[WHOIS] unknown",
+    server_features: Optional[ServerFeatures] = None,
 ) -> str:
     """
     Cria representacao textual no formato de treino do DomURLs-BERT.
 
     Formato: [URL] <url> <whois_tokens> [EXTRA] feat=val feat=val ...
 
-    Quando WHOIS disponivel (US-003):
-      [URL] <url> [AGE] <dias>d [REG] <registrar> [EXPIRE] <dias>d [WHOIS] found [EXTRA] ...
-    Quando WHOIS indisponivel:
-      [URL] <url> [WHOIS] unknown [EXTRA] ...
-    """
-    # Features client-side no formato de treino (excluindo domain_google_index)
-    extra_parts = []
-    for key, value in client_features.model_dump().items():
-        extra_parts.append(f"{key}={int(value)}")
+    Training feature order in [EXTRA]:
+      redirects, length, dom_length, dot, hyphen, slash, at, params,
+      shortened, tls, dom_age, dom_expire, mx_servers, nameservers,
+      dom_google_index, dom_spf, dom_in_ip, vowels_domain, srv_client, email
 
+    Features with value -1 (unknown/failed lookup) are omitted.
+    """
+    cf = client_features.model_dump()
+    sf = server_features or ServerFeatures()
+
+    # Ordered list matching training dataset exactly
+    ordered_features = [
+        ("redirects", sf.redirects),
+        ("length", cf["length"]),
+        ("dom_length", cf["dom_length"]),
+        ("dot", cf["dot"]),
+        ("hyphen", cf["hyphen"]),
+        ("slash", cf["slash"]),
+        ("at", cf["at"]),
+        ("params", cf["params"]),
+        ("shortened", cf["shortened"]),
+        ("tls", cf["tls"]),
+        ("dom_age", sf.dom_age),
+        ("dom_expire", sf.dom_expire),
+        ("mx_servers", sf.mx_servers),
+        ("nameservers", sf.nameservers),
+        ("dom_google_index", sf.domain_google_index),
+        ("dom_spf", sf.dom_spf),
+        ("dom_in_ip", sf.dom_in_ip),
+        ("vowels_domain", cf["vowels_domain"]),
+        ("srv_client", sf.srv_client),
+        ("email", cf["email"]),
+    ]
+
+    # Omit features with value -1 (unknown/failed)
+    extra_parts = [f"{k}={int(v)}" for k, v in ordered_features if v != -1]
     extra_text = "[EXTRA] " + " ".join(extra_parts) if extra_parts else "[EXTRA] none"
+
+    if server_features is not None:
+        whois_text = server_features.whois_text
 
     return f"[URL] {url} {whois_text} {extra_text}"
 
 
-def predict_phishing(url: str, client_features: ClientFeatures) -> tuple:
+async def predict_phishing(url: str, client_features: ClientFeatures) -> tuple:
     """
-    Faz predicao usando DomURLs-BERT.
+    Faz predicao usando DomURLs-BERT with server-side feature extraction.
 
     Returns:
         tuple: (is_phishing, confidence, label, analysis, inference_ms)
     """
     start_time = time.perf_counter()
 
-    feature_text = create_feature_text(url, client_features)
+    server_feats = await extract_server_features(url)
+    feature_text = create_feature_text(url, client_features, server_features=server_feats)
 
     inputs = tokenizer(
         feature_text,
@@ -212,7 +245,7 @@ async def predict(request: PhishingRequest):
         raise HTTPException(status_code=503, detail="Modelo nao carregado")
 
     try:
-        is_phishing, confidence, label, analysis, inference_ms = predict_phishing(
+        is_phishing, confidence, label, analysis, inference_ms = await predict_phishing(
             request.url, request.client_features
         )
 
