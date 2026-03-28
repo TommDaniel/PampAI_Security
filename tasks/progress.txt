@@ -120,3 +120,20 @@
   - The `ApiResponse` fields match `PhishingResponse` from the Python API exactly (snake_case)
   - `fetchWithTimeout` uses `AbortController` since `fetch` doesn't natively support timeouts
 ---
+
+## 2026-03-28 - US-008
+- Created `extensao-phishing/src/utils/cache.ts` with URL analysis caching via `chrome.storage.local`
+- `CacheEntry` interface: isPhishing, confidence, label, analysis, timestamp
+- Storage key: `urlCache` in `chrome.storage.local`
+- URL normalization: lowercase hostname, remove trailing slash
+- TTL: 24h for LEGITIMATE, 7 days for PHISHING results
+- Max 5000 entries; evicts oldest 20% when exceeded (LRU eviction)
+- Exported functions: `getCached(url)`, `setCached(url, entry)`, `clearCache()`
+- Expired entries are cleaned up on read (lazy eviction)
+- Files changed: `extensao-phishing/src/utils/cache.ts` (new)
+- **Learnings for future iterations:**
+  - Cache uses `chrome.storage.local` (persistent, per-device), distinct from `chrome.storage.sync` used for settings like API URL
+  - `normalizeUrl` lowercases hostname and strips trailing slash — consuming code should always use `getCached`/`setCached` (never access cache directly)
+  - Eviction sorts all entries by timestamp and removes oldest 20% — simple LRU approximation
+  - `CacheEntry.timestamp` is set by the caller (not auto-set), giving flexibility to background.ts
+---
