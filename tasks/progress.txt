@@ -2,6 +2,7 @@
 - API code lives in `/workspace/phishing-api/app.py` (single-file FastAPI app)
 - Model files in `/workspace/phishing-api/model/` (DomURLs-BERT, 422MB safetensors)
 - Extension code in `/workspace/extensao-phishing/` using Plasmo framework (Chrome MV3)
+- Typecheck command: `npx tsc --noEmit --skipLibCheck` (skipLibCheck needed due to @types/react scheduler/tracing issue)
 - Training format: `[URL] <url> [WHOIS] unknown [EXTRA] key=val key=val ...` (see `benchmark-modelos/criar_dataset_multimodal.py`)
 - Training used `max_length=128` (see `model/training_metadata.json`) - now correctly set in app.py
 - `create_feature_text` accepts `server_features: ServerFeatures` param for full feature integration
@@ -88,4 +89,18 @@
   - Python 3.14 is too bleeding edge for torch compatibility — use 3.11 for stability
   - `start-period` of 120s needed because loading the DomURLs-BERT model takes time on first start
   - The deprecated `version` key in docker-compose.yml should be removed (Docker Compose V2+ doesn't need it)
+---
+
+## 2026-03-28 - US-006
+- Created `extensao-phishing/src/utils/clientFeatures.ts` with `ClientFeatures` interface (11 fields) and `extractClientFeatures(url)` function
+- Extracts: length, dom_length, dot, hyphen, slash, at, params, shortened, tls, vowels_domain, email
+- `shortened` checks against 15 known URL shorteners (bit.ly, tinyurl.com, t.co, etc.)
+- `email` uses regex to detect email patterns in the URL
+- Domain extraction for `dom_length` and `vowels_domain` uses simple hostname split (second-to-last part)
+- Files changed: `extensao-phishing/src/utils/clientFeatures.ts` (new)
+- **Learnings for future iterations:**
+  - Extension typecheck requires `--skipLibCheck` flag due to `@types/react` scheduler/tracing type mismatch
+  - The old `features.ts` (51 features for GBM/ONNX) is still present — will be deleted in US-013
+  - `ClientFeatures` field names match the API's `PhishingRequest.client_features` schema exactly
+  - Domain vowel counting uses the registered domain part only (e.g., "google" from "www.google.com")
 ---
