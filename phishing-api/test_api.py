@@ -204,3 +204,80 @@ class TestNoRFLogic:
         assert "RandomForest" not in source
         assert "rf_confidence" not in source
         assert "rf_prediction" not in source
+
+
+class TestFeatureTextFormat:
+    """US-002: Validate create_feature_text matches training format."""
+
+    def test_format_starts_with_url_token(self):
+        from app import create_feature_text, ClientFeatures
+        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
+        text = create_feature_text("https://google.com", features)
+        assert text.startswith("[URL] https://google.com")
+
+    def test_format_contains_whois_token(self):
+        from app import create_feature_text, ClientFeatures
+        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
+        text = create_feature_text("https://google.com", features)
+        assert "[WHOIS] unknown" in text
+
+    def test_format_contains_extra_token(self):
+        from app import create_feature_text, ClientFeatures
+        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
+        text = create_feature_text("https://google.com", features)
+        assert "[EXTRA]" in text
+
+    def test_format_uses_key_equals_value(self):
+        """Training format uses 'key=value' not 'key: value'."""
+        from app import create_feature_text, ClientFeatures
+        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
+        text = create_feature_text("https://google.com", features)
+        # Should contain key=value pairs, not key: value
+        assert "length=25" in text
+        assert "tls=1" in text
+        assert "dot=2" in text
+        # Should NOT contain old format
+        assert "length: " not in text
+        assert " | " not in text
+
+    def test_format_no_domain_google_index(self):
+        """domain_google_index was removed (always -1)."""
+        from app import create_feature_text, ClientFeatures
+        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
+        text = create_feature_text("https://google.com", features)
+        assert "google_index" not in text
+
+    def test_format_matches_training_pattern(self):
+        """Full text should match the exact training pattern."""
+        from app import create_feature_text, ClientFeatures
+        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
+        text = create_feature_text("https://google.com", features)
+        expected = (
+            "[URL] https://google.com [WHOIS] unknown "
+            "[EXTRA] length=25 dom_length=10 dot=2 hyphen=0 slash=3 "
+            "at=0 params=0 shortened=0 tls=1 vowels_domain=3 email=0"
+        )
+        assert text == expected
+
+    def test_format_with_whois_found(self):
+        """When WHOIS data is available (US-003), format includes AGE/REG/EXPIRE."""
+        from app import create_feature_text, ClientFeatures
+        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
+        whois_text = "[AGE] 365d [REG] GoDaddy [EXPIRE] 250d [WHOIS] found"
+        text = create_feature_text("https://google.com", features, whois_text=whois_text)
+        assert text.startswith("[URL] https://google.com [AGE] 365d [REG] GoDaddy [EXPIRE] 250d [WHOIS] found")
+        assert "[EXTRA] length=25" in text
+
+    def test_format_with_whois_not_found_default(self):
+        """Default whois_text is '[WHOIS] unknown'."""
+        from app import create_feature_text, ClientFeatures
+        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
+        text = create_feature_text("https://google.com", features)
+        assert "[WHOIS] unknown" in text
+
+    def test_tokenizer_max_length_is_128(self):
+        """Tokenizer max_length must be 128 to match training."""
+        import app as app_module
+        source = open(app_module.__file__).read()
+        assert "max_length=128" in source
+        assert "max_length=512" not in source

@@ -107,18 +107,29 @@ def load_model():
         raise
 
 
-def create_feature_text(url: str, client_features: ClientFeatures) -> str:
+def create_feature_text(
+    url: str,
+    client_features: ClientFeatures,
+    whois_text: str = "[WHOIS] unknown",
+) -> str:
     """
-    Cria representacao textual para o modelo.
-    TODO (US-002): Corrigir para formato de treino [URL]...[WHOIS]...[EXTRA]...
-    TODO (US-003): Integrar features server-side (WHOIS, DNS)
-    """
-    text_parts = [f"URL: {url}"]
+    Cria representacao textual no formato de treino do DomURLs-BERT.
 
+    Formato: [URL] <url> <whois_tokens> [EXTRA] feat=val feat=val ...
+
+    Quando WHOIS disponivel (US-003):
+      [URL] <url> [AGE] <dias>d [REG] <registrar> [EXPIRE] <dias>d [WHOIS] found [EXTRA] ...
+    Quando WHOIS indisponivel:
+      [URL] <url> [WHOIS] unknown [EXTRA] ...
+    """
+    # Features client-side no formato de treino (excluindo domain_google_index)
+    extra_parts = []
     for key, value in client_features.model_dump().items():
-        text_parts.append(f"{key}: {value}")
+        extra_parts.append(f"{key}={int(value)}")
 
-    return " | ".join(text_parts)
+    extra_text = "[EXTRA] " + " ".join(extra_parts) if extra_parts else "[EXTRA] none"
+
+    return f"[URL] {url} {whois_text} {extra_text}"
 
 
 def predict_phishing(url: str, client_features: ClientFeatures) -> tuple:
@@ -136,7 +147,7 @@ def predict_phishing(url: str, client_features: ClientFeatures) -> tuple:
         feature_text,
         return_tensors="pt",
         truncation=True,
-        max_length=512,  # TODO (US-002): corrigir para 128
+        max_length=128,
         padding=True,
     )
 
