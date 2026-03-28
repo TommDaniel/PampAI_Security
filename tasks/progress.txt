@@ -206,3 +206,21 @@
   - `inference.ts` still references logger — needed minimal fix to keep typecheck green before US-013 deletes it
   - DecisionLog is only actively used in inference.ts (legacy); new pipeline doesn't call `logDecision` yet — future work could wire it into background.ts
 ---
+
+## 2026-03-28 - US-013
+- Removed `onnxruntime-web` and `tldts` from package.json dependencies
+- Removed `wasm-unsafe-eval` from CSP in manifest
+- Cleaned `web_accessible_resources` (removed .onnx, .wasm, .js references; kept blacklist.json and Icone.png)
+- Deleted `src/utils/inference.ts` and `src/utils/features.ts`
+- Deleted all ONNX/WASM assets: modelo_phishing_ort14.onnx, 7 .wasm files, ort.min.js, ort.wasm.min.js, LEIA-ME.txt
+- Removed `assets/modelo/` directory entirely
+- Added `tsconfig.tsbuildinfo` to `.gitignore`
+- Updated package description from GBM/ONNX to DomURLs-BERT via API
+- npm install runs without errors, typecheck passes
+- Files changed: `extensao-phishing/package.json`, `extensao-phishing/package-lock.json`, `extensao-phishing/.gitignore`, plus 13 deleted files
+- **Learnings for future iterations:**
+  - `tldts` was only used by `features.ts` — safe to remove after features.ts deletion
+  - No other source files imported from `inference.ts` or `features.ts` (all imports were replaced in US-009 through US-012)
+  - Extension size reduced dramatically (~95MB → ~26MB) by removing ONNX model and WASM runtime
+  - `tsconfig.tsbuildinfo` is a TypeScript incremental build cache — should always be gitignored
+---

@@ -224,7 +224,7 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Be careful not to delete files that are still referenced. Do this after all other extension stories are done."
     },
     {
