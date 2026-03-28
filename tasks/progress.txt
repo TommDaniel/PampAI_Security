@@ -62,3 +62,17 @@
   - WHOIS cache is loaded in-memory once — for US-005 Docker, the cache file must be in the model volume
   - `domain_google_index` is always -1 and always omitted from text (matches training where it was always -1)
 ---
+
+## 2026-03-28 - US-004
+- Added POST `/predict-batch` endpoint accepting `List[PhishingRequest]`, returning `List[PhishingResponse]`
+- Batch tokenization: all feature texts tokenized in single `tokenizer()` call, single model forward pass
+- Server features extracted in parallel via `asyncio.gather` across all URLs
+- Extracted `_build_analysis` helper to share analysis text logic between single and batch predict
+- Added 7 test cases: 200 status, correct count, order preservation, schema, 5-URL batch, empty batch, invalid request
+- Files changed: `phishing-api/app.py`, `phishing-api/test_api.py`
+- **Learnings for future iterations:**
+  - Batch tokenizer call uses same params as single: `return_tensors="pt", truncation=True, max_length=128, padding=True`
+  - When mocking batch model output, logits tensor shape must be `[N, 2]` where N = batch size
+  - `predict_batch_phishing` shares `inference_ms` across all items (total time, not per-URL)
+  - Empty batch returns `[]` directly without hitting the model
+---
