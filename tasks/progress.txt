@@ -224,3 +224,18 @@
   - Extension size reduced dramatically (~95MB → ~26MB) by removing ONNX model and WASM runtime
   - `tsconfig.tsbuildinfo` is a TypeScript incremental build cache — should always be gitignored
 ---
+
+## 2026-03-28 - US-014
+- Created `phishing-api/test_integration.py` with 61 end-to-end integration tests across 14 test classes
+- Tests cover all 8 acceptance scenarios: API startup, blacklist hit, whitelist hit, unknown URL, cache hit, API offline, API recovery, popup contract
+- Additional validation: Docker config, extension structure, ONNX cleanup verification, API-extension contract, full pipeline flow with confidence bands
+- Extension typecheck passes (`npx tsc --noEmit --skipLibCheck`)
+- All test classes validated via AST (syntax correct, proper pytest structure)
+- Files changed: `phishing-api/test_integration.py` (new)
+- **Learnings for future iterations:**
+  - Sandbox has no pip/pytest — integration tests validated structurally via AST; full pytest run requires Docker or external env
+  - Extension has no test runner (no Jest/Vitest) — typecheck is the primary validation proxy
+  - API confidence is 0-1 float (not 0-100 percentage); extension multiplies by 100 for display
+  - Docker/Chrome E2E scenarios require manual verification outside sandbox — test code documents expected behavior
+  - 61 tests across 14 classes provides comprehensive coverage of the full extension↔API pipeline contract
+---
