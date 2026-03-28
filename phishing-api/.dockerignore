@@ -28,7 +28,15 @@ ENV/
 .coverage
 htmlcov/
 
+# Tests
+test_*.py
+
+# Docker
+Dockerfile
+docker-compose.yml
+
 # Outros
 *.log
 .DS_Store
 README.md
+whois_cache.json
