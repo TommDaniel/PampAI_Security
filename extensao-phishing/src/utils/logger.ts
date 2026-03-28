@@ -16,15 +16,17 @@ export interface LogEntry {
   data?: Record<string, unknown>
 }
 
+export type AnalysisSource = "blacklist" | "whitelist" | "cache" | "api" | "offline"
+
 export interface DecisionLog {
   timestamp: string
   url: string
   isPhishing: boolean
-  confidence: number          // probabilidade de phishing (0-1)
-  confidencePct: string       // ex: "87.43%"
+  confidence: number          // confiança em porcentagem (0-100)
+  confidencePct: string       // ex: "87.4%"
   label: "PHISHING" | "LEGITIMO"
   analysis: string            // texto explicando a decisão (igual ao campo analysis da API)
-  featuresUsed: number        // quantas features foram extraídas
+  source: AnalysisSource      // origem da decisão: blacklist | whitelist | cache | api | offline
   inferenceMs: number         // tempo de inferência em ms
 }
 
@@ -56,8 +58,8 @@ class Logger {
   /** Loga a decisão do modelo — equivalente ao logger.info da API após /predict */
   logDecision(entry: DecisionLog) {
     const msg =
-      `Resposta: GBM - ${entry.label} (${entry.confidencePct}) | ` +
-      `URL: ${entry.url} | Inferência: ${entry.inferenceMs}ms`
+      `Resposta: DomURLs-BERT - ${entry.label} (${entry.confidencePct}) | ` +
+      `URL: ${entry.url} | Fonte: ${entry.source} | Inferência: ${entry.inferenceMs}ms`
 
     this.info(msg)
     this.persistDecision(entry)

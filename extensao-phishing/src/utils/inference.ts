@@ -148,7 +148,7 @@ export async function predictUrl(url: string): Promise<PredictionResult> {
   logger.logDecision({
     timestamp: new Date().toISOString(),
     url, isPhishing, confidence, confidencePct, label, analysis,
-    featuresUsed: FEATURE_ORDER.length, inferenceMs,
+    source: "api", inferenceMs,
   })
 
   return { url, isPhishing, confidence, confidencePct, label, analysis, inferenceMs }
