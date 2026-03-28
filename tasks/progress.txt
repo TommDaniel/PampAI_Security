@@ -104,3 +104,19 @@
   - `ClientFeatures` field names match the API's `PhishingRequest.client_features` schema exactly
   - Domain vowel counting uses the registered domain part only (e.g., "google" from "www.google.com")
 ---
+
+## 2026-03-28 - US-007
+- Created `extensao-phishing/src/utils/api.ts` with HTTP client for the DomURLs-BERT FastAPI backend
+- `analyzeUrl(url, features)` sends POST to `/predict` with URL + ClientFeatures, returns `ApiResponse` or `{ offline: true }`
+- `checkHealth()` sends GET to `/health`, returns `HealthResponse` or `{ offline: true }`
+- API URL configurable via `chrome.storage.sync` key `apiUrl` (default: `http://localhost:8000`)
+- 5-second timeout on all requests using `AbortController`
+- Network errors and non-OK responses return `{ offline: true }` instead of throwing
+- Exported types: `ApiResponse`, `ApiOfflineResponse`, `HealthResponse`, `HealthOfflineResponse`
+- Files changed: `extensao-phishing/src/utils/api.ts` (new)
+- **Learnings for future iterations:**
+  - Use `"offline" in response` to distinguish offline responses from successful API responses in consuming code
+  - API URL is stored in `chrome.storage.sync` (synced across devices), cache data in `chrome.storage.local`
+  - The `ApiResponse` fields match `PhishingResponse` from the Python API exactly (snake_case)
+  - `fetchWithTimeout` uses `AbortController` since `fetch` doesn't natively support timeouts
+---
