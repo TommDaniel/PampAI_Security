@@ -157,3 +157,19 @@
   - `emitNotification` only fires for phishing detections (not for whitelist/cache/offline)
   - GET_RESULT expects `{ tabId }` in the message — popup must send the active tab's ID
 ---
+
+## 2026-03-28 - US-010
+- Updated `extensao-phishing/src/contents/detector.ts` to use the new API-based pipeline
+- Replaced `import PredictionResult from inference.ts` with `AnalysisResult from background.ts` and `extractClientFeatures from clientFeatures.ts`
+- Content script now extracts 11 client features and sends `{ type: ANALYZE_URL, url, features }` to background
+- Phishing → red banner, confidence < 70% → orange banner, legitimate → no banner, offline → no banner (fail-open)
+- Fixed confidence threshold from 0.7 to 70 (API returns percentage 0-100, not 0-1)
+- Replaced `result.confidencePct` (old string field) with `result.confidence.toFixed(1) + "%"`
+- No references to inference.ts or old features.ts
+- Files changed: `extensao-phishing/src/contents/detector.ts`
+- **Learnings for future iterations:**
+  - `AnalysisResult` is exported from `background.ts` (not from a utils file) — content script imports it directly
+  - API confidence is 0-100 (percentage), not 0-1 (probability) — all threshold checks must use percentage scale
+  - The old `PredictionResult.confidencePct` was a pre-formatted string; new code formats confidence inline
+  - Offline detection uses `result.offline` boolean from `AnalysisResult` — check before banner logic
+---
