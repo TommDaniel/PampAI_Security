@@ -79,6 +79,35 @@ class ClientFeatures(BaseModel):
     email: int = Field(..., description="1 se contem email na URL, 0 caso contrario")
 
 
+class EmailRequest(BaseModel):
+    """Modelo de entrada para analise de email"""
+    subject: str = Field(default="", description="Assunto do email")
+    body: str = Field(default="", description="Corpo do email (texto)")
+    sender: str = Field(default="", description="Remetente do email")
+    urls_in_body: List[str] = Field(default_factory=list, description="URLs encontradas no corpo do email")
+
+
+class EmailUrlResult(BaseModel):
+    """Resultado da analise de uma URL encontrada no email"""
+    url: str = Field(..., description="URL analisada")
+    is_phishing: bool = Field(..., description="Resultado: e phishing?")
+    confidence: float = Field(..., description="Confianca da predicao (0-100)")
+    label: str = Field(..., description="Label: PHISHING ou LEGITIMO")
+
+
+class EmailResponse(BaseModel):
+    """Modelo de resposta da analise de email"""
+    is_phishing: bool = Field(..., description="Resultado: e phishing?")
+    confidence: float = Field(..., description="Confianca da predicao (0-100)")
+    label: str = Field(..., description="Label: PHISHING, SUSPICIOUS ou LEGITIMO")
+    analysis: str = Field(..., description="Analise textual da decisao")
+    inference_ms: float = Field(..., description="Tempo de inferencia em ms")
+    email_score: float = Field(..., description="Score do email (0-100)")
+    url_results: List[EmailUrlResult] = Field(default_factory=list, description="Resultados das URLs no email")
+    language_detected: str = Field(default="", description="Idioma detectado do email")
+    translated: bool = Field(default=False, description="Se o email foi traduzido")
+
+
 class PhishingRequest(BaseModel):
     """Modelo de entrada para a API"""
     url: str = Field(..., description="URL a ser analisada")
