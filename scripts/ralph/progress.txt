@@ -1,3 +1,21 @@
+## Codebase Patterns
+- phishing-api/app.py uses Pydantic BaseModel + Field for all request/response models
+- Working tree has CRLF line endings on many files (.gitattributes controls this)
+- Extension lives in extensao-phishing/, API in phishing-api/
+- TypeScript typecheck: `npx tsc --noEmit` from extensao-phishing/
+- Python syntax check: `python3 -c "import ast; ast.parse(open('file').read())"`
+- No pip available in devcontainer - cannot install Python packages for runtime testing
+- Existing cascade architecture: BERT (URL) -> CatBoost (WHOIS/DNS) with confidence thresholds
+
 # Ralph Progress Log
-Started: Sun Mar 29 16:00:06 PDT 2026
+Started: Sun Mar 29 16:54:11 PDT 2026
+---
+
+## 2026-03-29 - US-001
+- Added EmailRequest, EmailUrlResult, EmailResponse Pydantic models to phishing-api/app.py
+- Files changed: phishing-api/app.py
+- **Learnings for future iterations:**
+  - Models were already present in working tree from prior work - just needed to commit
+  - app.py had CRLF endings causing large diff vs main
+  - No pip in devcontainer, use ast.parse for syntax validation
 ---

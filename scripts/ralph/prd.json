@@ -7,7 +7,7 @@
       "id": "US-001",
       "title": "Pydantic models para email",
       "priority": 1,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-002",
