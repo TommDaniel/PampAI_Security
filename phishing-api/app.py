@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, MarianMTModel, MarianTokenizer
 import logging
 import os
 from pathlib import Path
@@ -30,10 +30,18 @@ BERT_CONFIDENT_LOWER = 0.15  # P(phish) <= 0.15 → legitimo direto
 # Peso do BERT na combinacao cascata (1-alpha = peso do CatBoost)
 CASCADE_BERT_WEIGHT = 0.6
 
+# IDs dos modelos de email e traducao
+EMAIL_MODEL_ID = "cybersectony/phishing-email-detection-distilbert_v2.4.1"
+TRANSLATION_MODEL_ID = "Helsinki-NLP/opus-mt-tc-big-pt-en"
+
 # Variaveis globais para os modelos
 model = None
 tokenizer = None
 catboost_model = None
+email_model = None
+email_tokenizer = None
+translation_model = None
+translation_tokenizer = None
 MODEL_PATH = os.environ.get("MODEL_PATH", "model")
 CATBOOST_PATH = os.environ.get("CATBOOST_PATH", os.path.join("model", "catboost_cascata.cbm"))
 
@@ -127,8 +135,9 @@ class PhishingResponse(BaseModel):
 
 
 def load_model():
-    """Carrega o DomURLs-BERT e, se disponivel, o CatBoost para cascata."""
+    """Carrega o DomURLs-BERT, CatBoost, DistilBERT email e MarianMT traducao."""
     global model, tokenizer, catboost_model
+    global email_model, email_tokenizer, translation_model, translation_tokenizer
 
     try:
         model_path = Path(MODEL_PATH)
@@ -156,6 +165,32 @@ def load_model():
             logger.info(f"CatBoost cascata carregado de {CATBOOST_PATH}")
         else:
             logger.info("CatBoost nao encontrado — cascata desativada, BERT decide sozinho")
+
+        # Carregar DistilBERT para email phishing detection
+        try:
+            logger.info(f"Carregando DistilBERT email de {EMAIL_MODEL_ID}...")
+            email_tokenizer = AutoTokenizer.from_pretrained(EMAIL_MODEL_ID)
+            email_model = AutoModelForSequenceClassification.from_pretrained(EMAIL_MODEL_ID)
+            email_model.to(device)
+            email_model.eval()
+            logger.info(f"DistilBERT email carregado! Device: {device}")
+        except Exception as e:
+            logger.warning(f"Falha ao carregar modelo de email: {e}")
+            email_model = None
+            email_tokenizer = None
+
+        # Carregar MarianMT para traducao PT->EN
+        try:
+            logger.info(f"Carregando MarianMT traducao de {TRANSLATION_MODEL_ID}...")
+            translation_tokenizer = MarianTokenizer.from_pretrained(TRANSLATION_MODEL_ID)
+            translation_model = MarianMTModel.from_pretrained(TRANSLATION_MODEL_ID)
+            translation_model.to(device)
+            translation_model.eval()
+            logger.info(f"MarianMT traducao carregado! Device: {device}")
+        except Exception as e:
+            logger.warning(f"Falha ao carregar modelo de traducao: {e}")
+            translation_model = None
+            translation_tokenizer = None
 
     except Exception as e:
         logger.error(f"Erro ao carregar modelo: {str(e)}")
