@@ -23,6 +23,8 @@ export interface AnalysisResult {
   label: string
   analysis: string
   source: AnalysisSource
+  inferenceMs?: number
+  modelSource?: string
   offline?: boolean
 }
 
@@ -115,7 +117,9 @@ async function analyzePipeline(
   logger.info("API result", {
     url,
     label: response.label,
-    confidence: response.confidence
+    confidence: response.confidence,
+    inference_ms: response.inference_ms,
+    model_source: response.source
   })
 
   return {
@@ -123,7 +127,9 @@ async function analyzePipeline(
     confidence: response.confidence,
     label: response.label,
     analysis: response.analysis,
-    source: "api"
+    source: "api",
+    inferenceMs: response.inference_ms,
+    modelSource: response.source ?? "bert"
   }
 }
 
@@ -156,6 +162,28 @@ async function getTabResult(
 }
 
 // ============================================================
+// Badge — visual indicator on extension icon
+// ============================================================
+
+function updateBadge(tabId: number, result: AnalysisResult): void {
+  if (result.offline) {
+    chrome.action.setBadgeText({ text: "", tabId })
+    return
+  }
+
+  if (result.isPhishing) {
+    chrome.action.setBadgeText({ text: "!", tabId })
+    chrome.action.setBadgeBackgroundColor({ color: "#c53030", tabId })
+  } else if (result.confidence < 70) {
+    chrome.action.setBadgeText({ text: "?", tabId })
+    chrome.action.setBadgeBackgroundColor({ color: "#d69e2e", tabId })
+  } else {
+    chrome.action.setBadgeText({ text: "\u2713", tabId })
+    chrome.action.setBadgeBackgroundColor({ color: "#38a169", tabId })
+  }
+}
+
+// ============================================================
 // Message listener
 // ============================================================
 
@@ -172,6 +200,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(async (result) => {
         if (tabId !== undefined) {
           await storeTabResult(tabId, { ...result, url })
+          updateBadge(tabId, result)
         }
 
         if (result.isPhishing) {
@@ -256,8 +285,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function emitNotification(result: AnalysisResult) {
   chrome.notifications.create({
     type: "basic",
-    iconUrl: "assets/Icone.png",
-    title: "Phishing detected",
+    iconUrl: chrome.runtime.getURL("assets/Icone.png"),
+    title: "Phishing detectado",
     message: result.analysis,
     priority: 2
   })

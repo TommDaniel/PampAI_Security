@@ -152,7 +152,7 @@ class TestBlacklistHitScenario:
         data = response.json()
         assert data["is_phishing"] is True
         assert data["label"] == "PHISHING"
-        assert data["confidence"] > 0.9
+        assert data["confidence"] > 90
 
     def test_blacklist_response_schema_matches_extension_expectations(self):
         """
@@ -191,7 +191,7 @@ class TestWhitelistHitScenario:
         """Legit URLs with TLS should get high confidence."""
         _set_model_output([4.0, -4.0])  # strong legit
         data = client.post("/predict", json=LEGIT_REQUEST).json()
-        assert data["confidence"] > 0.95
+        assert data["confidence"] > 95
 
 
 # ==================================================================
@@ -408,7 +408,7 @@ class TestPopupResultContract:
         """Confidence < 70% should include cautionary text."""
         _set_model_output([0.1, -0.1])
         data = client.post("/predict", json=LEGIT_REQUEST).json()
-        assert data["confidence"] < 0.7
+        assert data["confidence"] < 70
         analysis_lower = data["analysis"].lower()
         assert "cautela" in analysis_lower or "baixa" in analysis_lower
 
@@ -420,11 +420,11 @@ class TestPopupResultContract:
         assert "device" in data
         assert "version" in data
 
-    def test_confidence_is_0_to_1_range(self):
-        """API returns confidence as 0-1 float; extension converts to percentage."""
+    def test_confidence_is_0_to_100_range(self):
+        """API returns confidence as 0-100 float."""
         _set_model_output([3.0, -3.0])
         data = client.post("/predict", json=LEGIT_REQUEST).json()
-        assert 0 <= data["confidence"] <= 1.0
+        assert 0 <= data["confidence"] <= 100
 
 
 # ==================================================================
@@ -486,25 +486,25 @@ class TestFullPipelineFlow:
         _set_model_output([-5.0, 5.0])
         data = client.post("/predict", json=PHISHING_REQUEST).json()
         assert data["is_phishing"] is True
-        assert data["confidence"] > 0.99
+        assert data["confidence"] > 99
 
     def test_high_confidence_legitimate(self):
         _set_model_output([5.0, -5.0])
         data = client.post("/predict", json=LEGIT_REQUEST).json()
         assert data["is_phishing"] is False
-        assert data["confidence"] > 0.99
+        assert data["confidence"] > 99
 
     def test_medium_confidence_phishing(self):
         _set_model_output([-1.0, 1.0])
         data = client.post("/predict", json=PHISHING_REQUEST).json()
         assert data["is_phishing"] is True
-        assert 0.7 < data["confidence"] < 0.95
+        assert 70 < data["confidence"] < 95
 
     def test_low_confidence_edge_case(self):
         """Near 0.5 probability -> low confidence warning."""
         _set_model_output([0.05, -0.05])
         data = client.post("/predict", json=LEGIT_REQUEST).json()
-        assert data["confidence"] < 0.6
+        assert data["confidence"] < 60
 
     def test_batch_mixed_results(self):
         """Batch with mix of phishing and legitimate URLs."""

@@ -96,6 +96,18 @@ function sourceLabel(source: AnalysisSource): string {
   return labels[source] ?? source
 }
 
+function modelSourceLabel(modelSource?: string): string {
+  if (!modelSource || modelSource === "bert") return "BERT"
+  if (modelSource === "cascade") return "BERT + CatBoost"
+  return modelSource
+}
+
+function formatInferenceMs(ms?: number): string {
+  if (ms === undefined || ms === null) return "-"
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
 function ApiStatusDot({ online }: { online: boolean }) {
   return (
     <span
@@ -279,8 +291,14 @@ export default function Popup() {
         </div>
         <div className="metric">
           <span className="metric-label">Motor</span>
-          <span className="metric-value">DomURLs-BERT</span>
+          <span className="metric-value">{modelSourceLabel(result.modelSource)}</span>
         </div>
+        {result.inferenceMs !== undefined && (
+          <div className="metric">
+            <span className="metric-label">Tempo</span>
+            <span className="metric-value">{formatInferenceMs(result.inferenceMs)}</span>
+          </div>
+        )}
       </div>
 
       {/* Settings panel */}

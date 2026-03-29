@@ -7,6 +7,7 @@ pydantic>=2.12.0
 torch>=2.9.0
 transformers>=5.0.0
 safetensors>=0.7.0
+catboost>=1.2
 
 # Server-side feature extraction
 python-whois>=0.9.4

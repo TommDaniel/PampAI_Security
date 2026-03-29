@@ -30,7 +30,7 @@
     },
     "web_accessible_resources": [
       {
-        "resources": ["assets/blacklist.json", "assets/Icone.png"],
+        "resources": ["assets/blacklist.json", "assets/whitelist.json", "assets/Icone.png"],
         "matches": ["<all_urls>"]
       }
     ]

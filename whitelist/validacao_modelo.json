@@ -1,0 +1,568 @@
+{
+  "accuracy": 41.935483870967744,
+  "total": 62,
+  "correct": 26,
+  "false_positives": 36,
+  "false_negatives": 0,
+  "errors": 0,
+  "results": [
+    {
+      "url": "https://www.bb.com.br/site/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9081987738609314,
+      "correct": false,
+      "inference_ms": 4095.79,
+      "error": ""
+    },
+    {
+      "url": "https://www.itau.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9812639951705933,
+      "correct": false,
+      "inference_ms": 2089.39,
+      "error": ""
+    },
+    {
+      "url": "https://banco.bradesco/html/classic/index.shtm",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9635458588600159,
+      "correct": false,
+      "inference_ms": 2093.34,
+      "error": ""
+    },
+    {
+      "url": "https://www.santander.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9796059727668762,
+      "correct": false,
+      "inference_ms": 2087.13,
+      "error": ""
+    },
+    {
+      "url": "https://www.caixa.gov.br/Paginas/home-caixa.aspx",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.8663493990898132,
+      "correct": false,
+      "inference_ms": 4083.46,
+      "error": ""
+    },
+    {
+      "url": "https://www.nubank.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9746159315109253,
+      "correct": false,
+      "inference_ms": 2087.15,
+      "error": ""
+    },
+    {
+      "url": "https://www.banrisul.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.972623348236084,
+      "correct": false,
+      "inference_ms": 889.35,
+      "error": ""
+    },
+    {
+      "url": "https://www.gov.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.5819335579872131,
+      "correct": false,
+      "inference_ms": 864.51,
+      "error": ""
+    },
+    {
+      "url": "https://www.receita.fazenda.gov.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9577696323394775,
+      "correct": false,
+      "inference_ms": 753.35,
+      "error": ""
+    },
+    {
+      "url": "https://www.ibge.gov.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.6013323068618774,
+      "correct": false,
+      "inference_ms": 4068.27,
+      "error": ""
+    },
+    {
+      "url": "https://www.google.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9759914875030518,
+      "correct": false,
+      "inference_ms": 325.11,
+      "error": ""
+    },
+    {
+      "url": "https://www.google.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9698978662490845,
+      "correct": false,
+      "inference_ms": 852.51,
+      "error": ""
+    },
+    {
+      "url": "https://www.youtube.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9312672019004822,
+      "correct": false,
+      "inference_ms": 490.9,
+      "error": ""
+    },
+    {
+      "url": "https://www.facebook.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9752957820892334,
+      "correct": false,
+      "inference_ms": 384.25,
+      "error": ""
+    },
+    {
+      "url": "https://www.instagram.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9624555706977844,
+      "correct": false,
+      "inference_ms": 2109.67,
+      "error": ""
+    },
+    {
+      "url": "https://www.linkedin.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9315537810325623,
+      "correct": false,
+      "inference_ms": 488.52,
+      "error": ""
+    },
+    {
+      "url": "https://github.com/",
+      "expected": "LEGITIMO",
+      "predicted": "LEGITIMO",
+      "confidence": 0.6672303676605225,
+      "correct": true,
+      "inference_ms": 3091.86,
+      "error": ""
+    },
+    {
+      "url": "https://www.microsoft.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9777678847312927,
+      "correct": false,
+      "inference_ms": 2090.41,
+      "error": ""
+    },
+    {
+      "url": "https://www.apple.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9936424493789673,
+      "correct": false,
+      "inference_ms": 2090.56,
+      "error": ""
+    },
+    {
+      "url": "https://www.amazon.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9760245680809021,
+      "correct": false,
+      "inference_ms": 2083.17,
+      "error": ""
+    },
+    {
+      "url": "https://www.amazon.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9675740599632263,
+      "correct": false,
+      "inference_ms": 2081.26,
+      "error": ""
+    },
+    {
+      "url": "https://www.mercadolivre.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.7734271883964539,
+      "correct": false,
+      "inference_ms": 4073.66,
+      "error": ""
+    },
+    {
+      "url": "https://www.magazineluiza.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9731085300445557,
+      "correct": false,
+      "inference_ms": 788.31,
+      "error": ""
+    },
+    {
+      "url": "https://www.americanas.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9725339412689209,
+      "correct": false,
+      "inference_ms": 857.53,
+      "error": ""
+    },
+    {
+      "url": "https://www.kabum.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9735909700393677,
+      "correct": false,
+      "inference_ms": 792.86,
+      "error": ""
+    },
+    {
+      "url": "https://www.globo.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9748966097831726,
+      "correct": false,
+      "inference_ms": 1723.2,
+      "error": ""
+    },
+    {
+      "url": "https://g1.globo.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9871829748153687,
+      "correct": false,
+      "inference_ms": 1695.1,
+      "error": ""
+    },
+    {
+      "url": "https://www.uol.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9191893339157104,
+      "correct": false,
+      "inference_ms": 4083.86,
+      "error": ""
+    },
+    {
+      "url": "https://www.ifood.com.br/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9613415598869324,
+      "correct": false,
+      "inference_ms": 849.77,
+      "error": ""
+    },
+    {
+      "url": "https://www.netflix.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9384943842887878,
+      "correct": false,
+      "inference_ms": 1647.69,
+      "error": ""
+    },
+    {
+      "url": "https://www.spotify.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9593950510025024,
+      "correct": false,
+      "inference_ms": 2086.16,
+      "error": ""
+    },
+    {
+      "url": "https://www.uber.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.774467408657074,
+      "correct": false,
+      "inference_ms": 3066.83,
+      "error": ""
+    },
+    {
+      "url": "https://claude.ai/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9830753803253174,
+      "correct": false,
+      "inference_ms": 2089.48,
+      "error": ""
+    },
+    {
+      "url": "https://chatgpt.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9897686243057251,
+      "correct": false,
+      "inference_ms": 2085.19,
+      "error": ""
+    },
+    {
+      "url": "https://www.openai.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9671860933303833,
+      "correct": false,
+      "inference_ms": 1898.6,
+      "error": ""
+    },
+    {
+      "url": "https://www.wikipedia.org/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.9612529277801514,
+      "correct": false,
+      "inference_ms": 228.73,
+      "error": ""
+    },
+    {
+      "url": "https://stackoverflow.com/",
+      "expected": "LEGITIMO",
+      "predicted": "PHISHING",
+      "confidence": 0.6672090888023376,
+      "correct": false,
+      "inference_ms": 3075.66,
+      "error": ""
+    },
+    {
+      "url": "http://192.168.1.1.login-verify-account.com/signin",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9884976148605347,
+      "correct": true,
+      "inference_ms": 1088.96,
+      "error": ""
+    },
+    {
+      "url": "http://secure-paypal-login.com.phish.example.net/verify",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9851068258285522,
+      "correct": true,
+      "inference_ms": 1853.2,
+      "error": ""
+    },
+    {
+      "url": "http://www.goggle-accounts.com/ServiceLogin",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.987133264541626,
+      "correct": true,
+      "inference_ms": 1040.87,
+      "error": ""
+    },
+    {
+      "url": "http://bradesc0-seguranca.com/internet/login",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9798129796981812,
+      "correct": true,
+      "inference_ms": 1111.41,
+      "error": ""
+    },
+    {
+      "url": "http://bb-atualizacao-seguranca.tk/acesso",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9901092052459717,
+      "correct": true,
+      "inference_ms": 3068.58,
+      "error": ""
+    },
+    {
+      "url": "http://caixa-gov-br.desbloqueio.xyz/login",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9791688323020935,
+      "correct": true,
+      "inference_ms": 4082.73,
+      "error": ""
+    },
+    {
+      "url": "http://itau-token-seguro.ml/validar",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9924909472465515,
+      "correct": true,
+      "inference_ms": 4285.8,
+      "error": ""
+    },
+    {
+      "url": "http://login.microsoft.com.secure-verify.xyz/oauth",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9870023727416992,
+      "correct": true,
+      "inference_ms": 2067.25,
+      "error": ""
+    },
+    {
+      "url": "http://apple-id-verify.com/locked/confirm",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9812889099121094,
+      "correct": true,
+      "inference_ms": 4075.76,
+      "error": ""
+    },
+    {
+      "url": "http://netflix-payment-update.com/billing",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9772951602935791,
+      "correct": true,
+      "inference_ms": 4070.73,
+      "error": ""
+    },
+    {
+      "url": "http://amazon-order-confirm.xyz/track",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9821924567222595,
+      "correct": true,
+      "inference_ms": 1177.11,
+      "error": ""
+    },
+    {
+      "url": "http://facebook-security-alert.com/checkpoint",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9801937341690063,
+      "correct": true,
+      "inference_ms": 3063.71,
+      "error": ""
+    },
+    {
+      "url": "http://update-whatsapp.com/verify",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9918968081474304,
+      "correct": true,
+      "inference_ms": 1770.28,
+      "error": ""
+    },
+    {
+      "url": "http://instagram-verify-badge.com/confirm",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.986960768699646,
+      "correct": true,
+      "inference_ms": 1112.7,
+      "error": ""
+    },
+    {
+      "url": "http://linkedin-security.com/verify",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9860207438468933,
+      "correct": true,
+      "inference_ms": 1805.22,
+      "error": ""
+    },
+    {
+      "url": "http://google-drive-share.xyz/document",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9858413934707642,
+      "correct": true,
+      "inference_ms": 1119.75,
+      "error": ""
+    },
+    {
+      "url": "http://dropbox-file-share.tk/download",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9832620620727539,
+      "correct": true,
+      "inference_ms": 3060.63,
+      "error": ""
+    },
+    {
+      "url": "http://nubank-desbloqueio.com/app",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9904658794403076,
+      "correct": true,
+      "inference_ms": 4068.51,
+      "error": ""
+    },
+    {
+      "url": "http://mercadolivre-compra.xyz/checkout",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9855306148529053,
+      "correct": true,
+      "inference_ms": 2065.53,
+      "error": ""
+    },
+    {
+      "url": "http://correios-rastreio.tk/encomenda",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9794790148735046,
+      "correct": true,
+      "inference_ms": 3073.65,
+      "error": ""
+    },
+    {
+      "url": "http://receita-federal-restituicao.com/consulta",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9842838048934937,
+      "correct": true,
+      "inference_ms": 4070.3,
+      "error": ""
+    },
+    {
+      "url": "http://detran-multa.xyz/consultar",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9893398880958557,
+      "correct": true,
+      "inference_ms": 1191.54,
+      "error": ""
+    },
+    {
+      "url": "http://gov-br-atualizar.com/meugovbr",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9874131679534912,
+      "correct": true,
+      "inference_ms": 1078.46,
+      "error": ""
+    },
+    {
+      "url": "http://192.168.0.1/admin/phishing-kit/index.html",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.978506863117218,
+      "correct": true,
+      "inference_ms": 3068.2,
+      "error": ""
+    },
+    {
+      "url": "http://xn--fcebook-9db.com/login",
+      "expected": "PHISHING",
+      "predicted": "PHISHING",
+      "confidence": 0.9897385239601135,
+      "correct": true,
+      "inference_ms": 3063.78,
+      "error": ""
+    }
+  ]
+}

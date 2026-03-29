@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-03-29 19:34:25",
+  "api_url": "http://localhost:8000",
+  "total_urls": 101,
+  "legitimate_count": 51,
+  "phishing_count": 50,
+  "results": {
+    "bert": {
+      "metrics": {
+        "total": 101,
+        "errors": 0,
+        "tp": 50,
+        "fp": 6,
+        "tn": 45,
+        "fn": 0,
+        "accuracy": 94.1,
+        "precision": 89.3,
+        "recall": 100.0,
+        "f1": 94.3,
+        "latency_mean_ms": 48.3,
+        "latency_p50_ms": 47.4,
+        "latency_p95_ms": 55.4
+      },
+      "false_positives": [
+        "FP: https://banco.bradesco (99.8%) [bert]",
+        "FP: https://www.linkedin.com (66.9%) [bert]",
+        "FP: https://github.com (71.5%) [bert]",
+        "FP: https://outlook.live.com (88.9%) [bert]",
+        "FP: https://mail.google.com (95.8%) [bert]",
+        "FP: https://chatgpt.com (99.3%) [bert]"
+      ],
+      "false_negatives": []
+    },
+    "catboost": {
+      "metrics": {
+        "total": 101,
+        "errors": 0,
+        "tp": 49,
+        "fp": 0,
+        "tn": 51,
+        "fn": 1,
+        "accuracy": 99.0,
+        "precision": 100.0,
+        "recall": 98.0,
+        "f1": 99.0,
+        "latency_mean_ms": 2048.4,
+        "latency_p50_ms": 2002.6,
+        "latency_p95_ms": 4007.5
+      },
+      "false_positives": [],
+      "false_negatives": [
+        "FN: http://tinyurl.com/fake-banco-login (89.4%) [catboost]"
+      ]
+    },
+    "cascade": {
+      "metrics": {
+        "total": 101,
+        "errors": 0,
+        "tp": 50,
+        "fp": 4,
+        "tn": 47,
+        "fn": 0,
+        "accuracy": 96.0,
+        "precision": 92.6,
+        "recall": 100.0,
+        "f1": 96.2,
+        "latency_mean_ms": 100.9,
+        "latency_p50_ms": 44.8,
+        "latency_p95_ms": 83.8
+      },
+      "false_positives": [
+        "FP: https://banco.bradesco (99.8%) [bert]",
+        "FP: https://outlook.live.com (88.9%) [bert]",
+        "FP: https://mail.google.com (95.8%) [bert]",
+        "FP: https://chatgpt.com (99.3%) [bert]"
+      ],
+      "false_negatives": []
+    }
+  }
+}

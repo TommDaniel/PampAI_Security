@@ -14,6 +14,7 @@ export interface ApiResponse {
   label: string
   analysis: string
   inference_ms: number
+  source: string
 }
 
 export interface ApiOfflineResponse {

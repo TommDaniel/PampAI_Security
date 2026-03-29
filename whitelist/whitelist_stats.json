@@ -1,0 +1,30 @@
+{
+  "total_domains": 32406,
+  "sources": {
+    "majestic": 17829,
+    "tranco": 14150,
+    "curated_br": 273,
+    "curated_global": 154
+  },
+  "categories": {
+    "global_popular": 31979,
+    "bancos": 62,
+    "governo": 57,
+    "universidades": 42,
+    "ecommerce": 34,
+    "servicos": 32,
+    "cloud_providers": 30,
+    "midia": 30,
+    "entertainment": 24,
+    "social_media": 24,
+    "tech_platforms": 18,
+    "ai_platforms": 16,
+    "telecom": 16,
+    "search_engines": 12,
+    "email_providers": 12,
+    "ecommerce_global": 10,
+    "reference": 8
+  },
+  "blacklist_conflicts_removed": 212,
+  "top_n_used": 10000
+}

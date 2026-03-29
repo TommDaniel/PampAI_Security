@@ -133,7 +133,7 @@ class TestPredictEndpoint:
         assert data["url"] == SAMPLE_REQUEST["url"]
         assert data["is_phishing"] is False
         assert data["label"] == "LEGITIMO"
-        assert data["confidence"] > 0.9
+        assert data["confidence"] > 90
         assert data["inference_ms"] >= 0
 
     def test_predict_phishing(self):
@@ -144,7 +144,7 @@ class TestPredictEndpoint:
         assert data["url"] == PHISHING_REQUEST["url"]
         assert data["is_phishing"] is True
         assert data["label"] == "PHISHING"
-        assert data["confidence"] > 0.9
+        assert data["confidence"] > 90
         assert data["inference_ms"] >= 0
 
     def test_predict_low_confidence(self):
@@ -152,7 +152,7 @@ class TestPredictEndpoint:
         response = client.post("/predict", json=SAMPLE_REQUEST)
         data = response.json()
 
-        assert data["confidence"] < 0.7
+        assert data["confidence"] < 70
         assert "baixa confianca" in data["analysis"].lower() or "cautela" in data["analysis"].lower()
 
     def test_predict_missing_url_returns_422(self):
