@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Versao da API
-API_VERSION = "3.0.0"
+API_VERSION = "4.0.0"
 
 # Threshold de phishing — probabilidade minima para classificar como phishing.
 # Valor mais alto reduz falsos positivos (sites legitimos marcados como phishing).
@@ -477,6 +477,7 @@ async def health_check():
         "status": "healthy",
         "model_loaded": True,
         "cascade_enabled": catboost_model is not None,
+        "email_model_loaded": email_model is not None,
         "device": device,
         "version": API_VERSION,
     }
