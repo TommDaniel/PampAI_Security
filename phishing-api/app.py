@@ -31,6 +31,11 @@ BERT_CONFIDENT_LOWER = 0.15  # P(phish) <= 0.15 → legitimo direto
 # Peso do BERT na combinacao cascata (1-alpha = peso do CatBoost)
 CASCADE_BERT_WEIGHT = 0.6
 
+# Thresholds para classificacao de email
+EMAIL_PHISHING_THRESHOLD = 0.6
+EMAIL_SUSPICIOUS_THRESHOLD = 0.4
+EMAIL_WEIGHT = 0.6
+
 # IDs dos modelos de email e traducao
 EMAIL_MODEL_ID = "cybersectony/phishing-email-detection-distilbert_v2.4.1"
 TRANSLATION_MODEL_ID = "Helsinki-NLP/opus-mt-tc-big-pt-en"
@@ -266,6 +271,112 @@ def _analyze_email_urls(urls: List[str]) -> List[EmailUrlResult]:
             label=label,
         ))
     return results
+
+
+def _build_email_analysis(label: str, confidence: float, email_score: float,
+                          url_results: List[EmailUrlResult], language_detected: str,
+                          translated: bool) -> str:
+    """Gera texto de analise legivel para resultado de email."""
+    parts = []
+
+    if label == "PHISHING":
+        parts.append(f"Email classificado como PHISHING com confianca de {confidence:.1f}%.")
+    elif label == "SUSPICIOUS":
+        parts.append(f"Email classificado como SUSPICIOUS com confianca de {confidence:.1f}%. Recomenda-se cautela.")
+    else:
+        parts.append(f"Email classificado como LEGITIMO com confianca de {confidence:.1f}%.")
+
+    parts.append(f"Score do conteudo do email: {email_score:.1f}%.")
+
+    if url_results:
+        phishing_urls = [r for r in url_results if r.is_phishing]
+        if phishing_urls:
+            parts.append(f"{len(phishing_urls)} de {len(url_results)} URLs detectadas como phishing.")
+        else:
+            parts.append(f"{len(url_results)} URLs analisadas, nenhuma suspeita.")
+
+    if translated:
+        parts.append(f"Idioma detectado: {language_detected}. Traduzido para EN antes da classificacao.")
+
+    return " ".join(parts)
+
+
+@app.post("/analyze-email", response_model=EmailResponse)
+async def analyze_email(request: EmailRequest):
+    """Endpoint de analise de email phishing usando DistilBERT + analise de URLs."""
+    if email_model is None:
+        raise HTTPException(status_code=503, detail="Modelo de email nao carregado")
+
+    start_time = time.perf_counter()
+
+    # 1. Concatena subject + body
+    full_text = f"Subject: {request.subject}\n\n{request.body}" if request.subject else request.body
+
+    # 2. Detecta idioma e traduz se necessario
+    translated_text, language_detected, was_translated = detect_and_translate(full_text)
+
+    # 3. Classifica com DistilBERT email
+    device = next(email_model.parameters()).device
+    inputs = email_tokenizer(
+        translated_text,
+        return_tensors="pt",
+        truncation=True,
+        max_length=512,
+        padding=True,
+    )
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        outputs = email_model(**inputs)
+        probabilities = torch.softmax(outputs.logits, dim=-1)
+
+    email_prob = probabilities[0][1].item()
+    email_score = email_prob * 100
+
+    # 4. Analisa URLs do body
+    url_results = []
+    if request.urls_in_body and model is not None:
+        url_results = _analyze_email_urls(request.urls_in_body)
+
+    # 5. Combinacao de scores
+    phishing_urls = [r for r in url_results if r.is_phishing]
+    high_confidence_phishing = [r for r in phishing_urls if r.confidence > 80]
+
+    if high_confidence_phishing:
+        final_prob = max(email_prob, 0.9)
+    elif phishing_urls:
+        max_url_prob = max(r.confidence / 100 for r in phishing_urls)
+        final_prob = EMAIL_WEIGHT * email_prob + (1 - EMAIL_WEIGHT) * max_url_prob
+    else:
+        final_prob = email_prob
+
+    # 6. Labels
+    if final_prob > EMAIL_PHISHING_THRESHOLD:
+        label = "PHISHING"
+    elif final_prob >= EMAIL_SUSPICIOUS_THRESHOLD:
+        label = "SUSPICIOUS"
+    else:
+        label = "LEGITIMO"
+
+    is_phishing = final_prob > EMAIL_PHISHING_THRESHOLD
+    confidence = (final_prob if is_phishing else 1.0 - final_prob) * 100
+
+    inference_ms = (time.perf_counter() - start_time) * 1000
+
+    analysis = _build_email_analysis(label, confidence, email_score, url_results,
+                                     language_detected, was_translated)
+
+    return EmailResponse(
+        is_phishing=is_phishing,
+        confidence=round(confidence, 2),
+        label=label,
+        analysis=analysis,
+        inference_ms=round(inference_ms, 2),
+        email_score=round(email_score, 2),
+        url_results=url_results,
+        language_detected=language_detected,
+        translated=was_translated,
+    )
 
 
 async def _catboost_predict(url: str, client_features: ClientFeatures) -> float:
