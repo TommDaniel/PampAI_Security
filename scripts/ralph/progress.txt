@@ -110,3 +110,14 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - Model download step uses semicolons to chain Python statements in a single `RUN` layer
   - CRLF warning on commit is cosmetic — .gitattributes handles line ending normalization
 ---
+
+## 2026-03-29 - US-009
+- Added `EmailUrlResult` and `EmailAnalysisResponse` interfaces to `extensao-phishing/src/utils/api.ts`
+- Added `analyzeEmail()` function that POSTs to `/analyze-email` using `fetchWithTimeout`, same pattern as `analyzeUrl`
+- Returns `EmailAnalysisResponse | ApiOfflineResponse`
+- Files changed: extensao-phishing/src/utils/api.ts
+- **Learnings for future iterations:**
+  - Extension uses Plasmo framework with TypeScript strict mode — `npx tsc --noEmit` for typecheck
+  - `analyzeEmail` follows exact same error handling pattern as `analyzeUrl`: try/catch returning `{ offline: true }`
+  - Interface fields must match Python Pydantic model field names exactly (snake_case)
+---
