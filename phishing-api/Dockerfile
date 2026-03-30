@@ -15,6 +15,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Pre-download email phishing and translation models
+RUN python -c "\
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, MarianTokenizer, MarianMTModel; \
+AutoTokenizer.from_pretrained('cybersectony/phishing-email-detection-distilbert_v2.4.1'); \
+AutoModelForSequenceClassification.from_pretrained('cybersectony/phishing-email-detection-distilbert_v2.4.1'); \
+MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-tc-big-pt-en'); \
+MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-tc-big-pt-en')"
+
 # Copy application code
 COPY app.py .
 COPY server_features.py .
