@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from typing import List
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, MarianMTModel, MarianTokenizer
+from langdetect import detect as langdetect_detect
 import logging
 import os
 from pathlib import Path
@@ -215,6 +216,39 @@ def _bert_predict(url: str) -> float:
         probabilities = torch.softmax(outputs.logits, dim=-1)
 
     return probabilities[0][1].item()
+
+
+def detect_and_translate(text: str) -> tuple[str, str, bool]:
+    """Detecta idioma do texto e traduz PT->EN se necessario.
+
+    Returns:
+        (texto_en, idioma_detectado, foi_traduzido)
+    """
+    if not text or not text.strip():
+        return text, "unknown", False
+
+    try:
+        lang = langdetect_detect(text)
+    except Exception:
+        lang = "unknown"
+
+    if lang == "pt" and translation_model is not None and translation_tokenizer is not None:
+        device = next(translation_model.parameters()).device
+        inputs = translation_tokenizer(
+            text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+        )
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        with torch.no_grad():
+            translated_ids = translation_model.generate(**inputs)
+
+        translated_text = translation_tokenizer.decode(translated_ids[0], skip_special_tokens=True)
+        return translated_text, lang, True
+
+    return text, lang, False
 
 
 async def _catboost_predict(url: str, client_features: ClientFeatures) -> float:

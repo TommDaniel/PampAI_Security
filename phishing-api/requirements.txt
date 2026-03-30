@@ -14,5 +14,8 @@ python-whois>=0.9.4
 dnspython>=2.7.0
 httpx>=0.28.0
 
+# Language detection
+langdetect>=1.0.9
+
 # Utilities
 python-multipart>=0.0.6
