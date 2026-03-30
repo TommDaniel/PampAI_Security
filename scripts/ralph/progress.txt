@@ -100,3 +100,13 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - The `_set_email_model_output` follows same pattern as `_set_model_output` but targets `email_model`
   - No pip/pytest in devcontainer — use `ast.parse()` for syntax validation only
 ---
+
+## 2026-03-29 - US-008
+- Added `RUN python -c "..."` step to Dockerfile that pre-downloads 4 HuggingFace artifacts: AutoTokenizer + AutoModelForSequenceClassification for DistilBERT email model, MarianTokenizer + MarianMTModel for translation model
+- Step placed after `pip install` and before `COPY` of application code
+- Files changed: phishing-api/Dockerfile
+- **Learnings for future iterations:**
+  - Dockerfile had no existing model pre-download step — the URL BERT model was downloaded at runtime
+  - Model download step uses semicolons to chain Python statements in a single `RUN` layer
+  - CRLF warning on commit is cosmetic — .gitattributes handles line ending normalization
+---

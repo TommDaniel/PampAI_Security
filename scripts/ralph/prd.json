@@ -49,7 +49,7 @@
       "id": "US-008",
       "title": "Atualizar Dockerfile",
       "priority": 8,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-009",
