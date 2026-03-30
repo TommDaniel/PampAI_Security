@@ -10,24 +10,38 @@ import torch
 
 
 # Mock model before importing app
-def _mock_load_model():
-    """Patches load_model to avoid loading the real 422MB model in tests."""
-    import app as app_module
-
-    # Create a mock model that returns predictable logits
+def _create_mock_model():
+    """Creates a mock model with proper .parameters() returning CPU device."""
     mock_model = MagicMock()
     mock_model.parameters.return_value = iter([torch.tensor([1.0])])  # CPU device
     mock_model.eval.return_value = None
+    return mock_model
 
-    # Mock tokenizer
+
+def _create_mock_tokenizer():
+    """Creates a mock tokenizer returning dummy input_ids and attention_mask."""
     mock_tokenizer = MagicMock()
     mock_tokenizer.return_value = {
         "input_ids": torch.tensor([[101, 102]]),
         "attention_mask": torch.tensor([[1, 1]]),
     }
+    return mock_tokenizer
 
-    app_module.model = mock_model
-    app_module.tokenizer = mock_tokenizer
+
+def _mock_load_model():
+    """Patches load_model to avoid loading the real 422MB model in tests."""
+    import app as app_module
+
+    app_module.model = _create_mock_model()
+    app_module.tokenizer = _create_mock_tokenizer()
+
+    # Also mock email model and tokenizer
+    app_module.email_model = _create_mock_model()
+    app_module.email_tokenizer = _create_mock_tokenizer()
+
+    # Translation model not loaded by default (tests can override)
+    app_module.translation_model = None
+    app_module.translation_tokenizer = None
 
 
 def _set_model_output(logits_values: list):
@@ -426,11 +440,10 @@ class TestFeatureTextFormat:
         assert "srv_client" not in text  # omitted (-1)
 
     def test_tokenizer_max_length_is_128(self):
-        """Tokenizer max_length must be 128 to match training."""
+        """URL tokenizer max_length must be 128 to match training."""
         import app as app_module
         source = open(app_module.__file__).read()
         assert "max_length=128" in source
-        assert "max_length=512" not in source
 
 
 class TestServerFeatures:
@@ -576,3 +589,211 @@ class TestServerFeatures:
             # WHOIS from cache should work even if DNS/redirects fail
             assert "found" in result.whois_text
             assert result.dom_age != -1 or result.dom_expire != -1
+
+
+# ==================================================================
+# Email Analysis Endpoint Tests (US-007)
+# ==================================================================
+
+def _set_email_model_output(logits_values: list):
+    """Helper to set what the mock email model returns."""
+    import app as app_module
+
+    mock_output = MagicMock()
+    mock_output.logits = torch.tensor([logits_values])
+    app_module.email_model.__call__ = MagicMock(return_value=mock_output)
+    app_module.email_model.return_value = mock_output
+
+
+PHISHING_EMAIL = {
+    "subject": "URGENT: Your account has been compromised",
+    "body": "Dear customer, your account has been compromised. Click here immediately to verify your identity and restore access. Failure to do so within 24 hours will result in permanent account closure.",
+    "sender": "security@fake-bank-alert.com",
+    "urls_in_body": [],
+}
+
+LEGIT_EMAIL = {
+    "subject": "Meeting reminder",
+    "body": "Hi team, just a reminder that our weekly standup is tomorrow at 10am. Please prepare your updates.",
+    "sender": "manager@company.com",
+    "urls_in_body": [],
+}
+
+PORTUGUESE_EMAIL = {
+    "subject": "Lembrete de reuniao",
+    "body": "Ola equipe, apenas um lembrete de que nossa reuniao semanal e amanha as 10h.",
+    "sender": "gerente@empresa.com.br",
+    "urls_in_body": [],
+}
+
+EMAIL_WITH_URLS = {
+    "subject": "Check this out",
+    "body": "Click the link below to see the document.",
+    "sender": "someone@example.com",
+    "urls_in_body": ["https://suspicious-site.com/login", "https://google.com"],
+}
+
+EMPTY_EMAIL = {
+    "subject": "",
+    "body": "",
+    "sender": "",
+    "urls_in_body": [],
+}
+
+
+class TestEmailAnalyzeEndpoint:
+    """Tests for POST /analyze-email endpoint."""
+
+    def test_phishing_email_english(self):
+        """Email phishing em ingles -> is_phishing: true, label: PHISHING."""
+        # logits: [legit, phishing] — high phishing probability
+        _set_email_model_output([-3.0, 3.0])
+        response = client.post("/analyze-email", json=PHISHING_EMAIL)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_phishing"] is True
+        assert data["label"] == "PHISHING"
+        assert data["confidence"] > 80
+
+    def test_legitimate_email(self):
+        """Email legitimo -> is_phishing: false, label: LEGITIMO."""
+        _set_email_model_output([3.0, -3.0])
+        response = client.post("/analyze-email", json=LEGIT_EMAIL)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_phishing"] is False
+        assert data["label"] == "LEGITIMO"
+
+    def test_suspicious_email(self):
+        """Email ambiguo -> label: SUSPICIOUS (score entre 40-60%)."""
+        # logits that produce ~0.5 probability (within 0.4-0.6 range)
+        _set_email_model_output([-0.2, 0.2])
+        response = client.post("/analyze-email", json=LEGIT_EMAIL)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["label"] == "SUSPICIOUS"
+
+    def test_portuguese_email_translation(self):
+        """Email em portugues -> translated: true, language_detected: pt."""
+        import app as app_module
+
+        # Set up translation model mocks
+        app_module.translation_model = _create_mock_model()
+        app_module.translation_tokenizer = _create_mock_tokenizer()
+
+        # Mock generate to return dummy translated tokens
+        app_module.translation_model.generate = MagicMock(
+            return_value=torch.tensor([[101, 102, 103]])
+        )
+        app_module.translation_tokenizer.decode = MagicMock(
+            return_value="Hello team, just a reminder that our weekly meeting is tomorrow at 10am."
+        )
+
+        _set_email_model_output([3.0, -3.0])
+
+        with patch("app.langdetect_detect", return_value="pt"):
+            response = client.post("/analyze-email", json=PORTUGUESE_EMAIL)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["translated"] is True
+        assert data["language_detected"] == "pt"
+
+        # Cleanup
+        app_module.translation_model = None
+        app_module.translation_tokenizer = None
+
+    def test_email_with_urls(self):
+        """Email com URLs no body -> url_results preenchido."""
+        # Email model: legitimate
+        _set_email_model_output([3.0, -3.0])
+        # URL model: set for BERT URL predictions
+        _set_model_output([-2.0, 2.0])  # phishing URL
+
+        response = client.post("/analyze-email", json=EMAIL_WITH_URLS)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["url_results"]) == 2
+        for url_result in data["url_results"]:
+            assert "url" in url_result
+            assert "is_phishing" in url_result
+            assert "confidence" in url_result
+            assert "label" in url_result
+
+    def test_empty_body_email(self):
+        """Email com body vazio -> resposta valida (sem erro)."""
+        _set_email_model_output([2.0, -2.0])
+        response = client.post("/analyze-email", json=EMPTY_EMAIL)
+        assert response.status_code == 200
+        data = response.json()
+        assert "is_phishing" in data
+        assert "label" in data
+        assert "confidence" in data
+
+    def test_email_response_schema(self):
+        """Validate all EmailResponse fields are present."""
+        _set_email_model_output([3.0, -3.0])
+        response = client.post("/analyze-email", json=LEGIT_EMAIL)
+        data = response.json()
+
+        assert "is_phishing" in data
+        assert "confidence" in data
+        assert "label" in data
+        assert "analysis" in data
+        assert "inference_ms" in data
+        assert "email_score" in data
+        assert "url_results" in data
+        assert "language_detected" in data
+        assert "translated" in data
+
+    def test_email_model_unavailable_returns_503(self):
+        """POST /analyze-email returns 503 if email_model is None."""
+        import app as app_module
+        original = app_module.email_model
+        app_module.email_model = None
+        try:
+            response = client.post("/analyze-email", json=LEGIT_EMAIL)
+            assert response.status_code == 503
+        finally:
+            app_module.email_model = original
+
+    def test_inference_ms_non_negative(self):
+        """inference_ms must be >= 0."""
+        _set_email_model_output([3.0, -3.0])
+        data = client.post("/analyze-email", json=LEGIT_EMAIL).json()
+        assert data["inference_ms"] >= 0
+
+    def test_confidence_range(self):
+        """Confidence must be 0-100."""
+        _set_email_model_output([3.0, -3.0])
+        data = client.post("/analyze-email", json=LEGIT_EMAIL).json()
+        assert 0 <= data["confidence"] <= 100
+
+    def test_email_score_range(self):
+        """email_score must be 0-100."""
+        _set_email_model_output([3.0, -3.0])
+        data = client.post("/analyze-email", json=LEGIT_EMAIL).json()
+        assert 0 <= data["email_score"] <= 100
+
+    def test_analysis_text_non_empty(self):
+        """Analysis text must be non-empty."""
+        _set_email_model_output([3.0, -3.0])
+        data = client.post("/analyze-email", json=LEGIT_EMAIL).json()
+        assert len(data["analysis"]) > 0
+
+
+class TestHealthEmailModel:
+    """Test /health includes email_model_loaded field."""
+
+    def test_health_includes_email_model_loaded(self):
+        """Health check reports email_model_loaded: true."""
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert "email_model_loaded" in data
+        assert data["email_model_loaded"] is True
+
+    def test_health_version_4(self):
+        """Health check reports version 4.0.0."""
+        data = client.get("/health").json()
+        assert data["version"] == "4.0.0"
