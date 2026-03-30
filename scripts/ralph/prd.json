@@ -31,7 +31,7 @@
       "id": "US-005",
       "title": "Endpoint POST /analyze-email",
       "priority": 5,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-006",

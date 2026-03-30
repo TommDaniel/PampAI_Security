@@ -58,3 +58,19 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - Uses existing `PHISHING_THRESHOLD` constant (0.65) for consistency with URL prediction
   - Placed before `_catboost_predict` to keep email-related functions grouped together
 ---
+
+## 2026-03-29 - US-005
+- Added `POST /analyze-email` endpoint with `response_model=EmailResponse` to phishing-api/app.py
+- Added constants: `EMAIL_PHISHING_THRESHOLD = 0.6`, `EMAIL_SUSPICIOUS_THRESHOLD = 0.4`, `EMAIL_WEIGHT = 0.6`
+- Pipeline: concatenate subject+body -> detect_and_translate -> DistilBERT classification -> URL analysis -> score combination
+- Score combination: URL phishing >80% confidence -> boost to max(email_prob, 0.9); any phishing URLs -> weighted avg (60/40); else email only
+- Three-label system: PHISHING (>0.6), SUSPICIOUS (0.4-0.6), LEGITIMO (<0.4)
+- Added `_build_email_analysis()` helper for human-readable analysis text
+- Returns HTTP 503 if email_model is None
+- Files changed: phishing-api/app.py
+- **Learnings for future iterations:**
+  - Email endpoint uses different thresholds than URL endpoint (0.6/0.4 vs 0.65) — email has SUSPICIOUS middle band
+  - `is_phishing` is True only for PHISHING label (>0.6), False for both SUSPICIOUS and LEGITIMO
+  - URL results use raw confidence from _analyze_email_urls, not re-normalized for combination
+  - email_score is the raw DistilBERT probability * 100, independent of URL combination
+---
