@@ -251,6 +251,23 @@ def detect_and_translate(text: str) -> tuple[str, str, bool]:
     return text, lang, False
 
 
+def _analyze_email_urls(urls: List[str]) -> List[EmailUrlResult]:
+    """Analisa URLs encontradas no corpo do email usando apenas BERT (sem cascata CatBoost)."""
+    results = []
+    for url in urls[:10]:
+        prob = _bert_predict(url)
+        is_phishing = prob > PHISHING_THRESHOLD
+        confidence = (prob if is_phishing else 1.0 - prob) * 100
+        label = "PHISHING" if is_phishing else "LEGITIMO"
+        results.append(EmailUrlResult(
+            url=url,
+            is_phishing=is_phishing,
+            confidence=round(confidence, 2),
+            label=label,
+        ))
+    return results
+
+
 async def _catboost_predict(url: str, client_features: ClientFeatures) -> float:
     """Extrai server features e roda CatBoost. Retorna P(phishing)."""
     from server_features import extract_server_features
