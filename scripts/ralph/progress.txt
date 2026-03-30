@@ -8,6 +8,8 @@
 - Existing cascade architecture: BERT (URL) -> CatBoost (WHOIS/DNS) with confidence thresholds
 - Email/translation models load with try/except so API still starts if HuggingFace models unavailable
 - MarianMT uses MarianTokenizer + MarianMTModel from transformers (not AutoTokenizer)
+- Email tokenizer uses max_length=512 (not 128 like URL tokenizer) — tests should not assert 512 is absent from source
+- Test helpers: `_create_mock_model()` and `_create_mock_tokenizer()` for reusable mock creation
 
 # Ralph Progress Log
 Started: Sun Mar 29 16:54:11 PDT 2026
@@ -83,4 +85,18 @@ Started: Sun Mar 29 16:54:11 PDT 2026
 - **Learnings for future iterations:**
   - Minimal 2-line change — just add field to dict and bump version constant
   - `email_model` global variable already exists from US-002, just check `is not None`
+---
+
+## 2026-03-29 - US-007
+- Added email analysis unit tests to phishing-api/test_api.py
+- Tests cover: phishing email (English), legitimate email, suspicious email (SUSPICIOUS label), Portuguese email with translation, email with URLs, empty body, response schema, 503 when email_model=None, health check email_model_loaded
+- Updated mock setup: `_mock_load_model` now also mocks `email_model` and `email_tokenizer`; added `_create_mock_model()` and `_create_mock_tokenizer()` helpers
+- Added `_set_email_model_output()` helper for controlling DistilBERT mock outputs
+- Removed outdated `assert "max_length=512" not in source` assertion (email tokenizer uses 512)
+- Files changed: phishing-api/test_api.py
+- **Learnings for future iterations:**
+  - Email model mock needs same pattern as URL model: `_create_mock_model()` with `.parameters()` returning CPU tensor
+  - Portuguese translation test requires mocking `langdetect_detect`, `translation_model.generate`, and `translation_tokenizer.decode`
+  - The `_set_email_model_output` follows same pattern as `_set_model_output` but targets `email_model`
+  - No pip/pytest in devcontainer — use `ast.parse()` for syntax validation only
 ---
