@@ -21,6 +21,25 @@ export interface ApiOfflineResponse {
   offline: true
 }
 
+export interface EmailUrlResult {
+  url: string
+  is_phishing: boolean
+  confidence: number
+  label: string
+}
+
+export interface EmailAnalysisResponse {
+  is_phishing: boolean
+  confidence: number
+  label: string
+  analysis: string
+  inference_ms: number
+  email_score: number
+  url_results: EmailUrlResult[]
+  language_detected: string
+  translated: boolean
+}
+
 export interface HealthResponse {
   status: string
   model_loaded: boolean
@@ -73,6 +92,28 @@ export async function analyzeUrl(
       return { offline: true }
     }
     return (await response.json()) as ApiResponse
+  } catch {
+    return { offline: true }
+  }
+}
+
+export async function analyzeEmail(email: {
+  subject: string
+  body: string
+  sender: string
+  urls_in_body: string[]
+}): Promise<EmailAnalysisResponse | ApiOfflineResponse> {
+  try {
+    const apiUrl = await getApiUrl()
+    const response = await fetchWithTimeout(`${apiUrl}/analyze-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(email)
+    })
+    if (!response.ok) {
+      return { offline: true }
+    }
+    return (await response.json()) as EmailAnalysisResponse
   } catch {
     return { offline: true }
   }
