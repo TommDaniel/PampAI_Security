@@ -25,7 +25,7 @@
       "id": "US-004",
       "title": "Funcao de analise de URLs do email",
       "priority": 4,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-005",

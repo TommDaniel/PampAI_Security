@@ -46,3 +46,15 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - langdetect import was already added to working tree from prior work
   - `detect_and_translate` handles edge cases: empty text returns "unknown", langdetect exceptions caught
 ---
+
+## 2026-03-29 - US-004
+- Added `_analyze_email_urls(urls: List[str]) -> List[EmailUrlResult]` function to phishing-api/app.py
+- Uses `_bert_predict(url)` directly without CatBoost cascade
+- Limits to 10 URLs per email via `urls[:10]`
+- Computes is_phishing (prob > PHISHING_THRESHOLD), confidence (0-100), label (PHISHING/LEGITIMO)
+- Files changed: phishing-api/app.py
+- **Learnings for future iterations:**
+  - Function follows same confidence calculation pattern as `predict_phishing`: `(prob if is_phishing else 1.0 - prob) * 100`
+  - Uses existing `PHISHING_THRESHOLD` constant (0.65) for consistency with URL prediction
+  - Placed before `_catboost_predict` to keep email-related functions grouped together
+---
