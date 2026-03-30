@@ -34,3 +34,15 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - Email/translation model loading is wrapped in try/except independently to keep API functional even if models fail to download
   - Import: `from transformers import MarianMTModel, MarianTokenizer`
 ---
+
+## 2026-03-29 - US-003
+- Added `detect_and_translate(text: str) -> tuple[str, str, bool]` function to phishing-api/app.py
+- Uses `langdetect.detect()` for language detection, translates PT->EN via MarianMT if available
+- Added `langdetect>=1.0.9` to requirements.txt
+- Import `from langdetect import detect as langdetect_detect` was already in working tree
+- Files changed: phishing-api/app.py, phishing-api/requirements.txt
+- **Learnings for future iterations:**
+  - CRLF line endings in app.py can cause Edit tool ENOENT errors on first attempt; re-reading the file resolves it
+  - langdetect import was already added to working tree from prior work
+  - `detect_and_translate` handles edge cases: empty text returns "unknown", langdetect exceptions caught
+---

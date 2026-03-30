@@ -19,7 +19,7 @@
       "id": "US-003",
       "title": "Funcao de deteccao de idioma e traducao",
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",
