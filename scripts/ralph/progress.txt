@@ -74,3 +74,13 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - URL results use raw confidence from _analyze_email_urls, not re-normalized for combination
   - email_score is the raw DistilBERT probability * 100, independent of URL combination
 ---
+
+## 2026-03-29 - US-006
+- Updated `/health` endpoint to include `email_model_loaded: bool` field (`email_model is not None`)
+- Bumped `API_VERSION` from `"3.0.0"` to `"4.0.0"`
+- Existing fields (`status`, `model_loaded`, `cascade_enabled`, `device`, `version`) preserved
+- Files changed: phishing-api/app.py
+- **Learnings for future iterations:**
+  - Minimal 2-line change — just add field to dict and bump version constant
+  - `email_model` global variable already exists from US-002, just check `is not None`
+---

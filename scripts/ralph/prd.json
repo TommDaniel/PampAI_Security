@@ -37,7 +37,7 @@
       "id": "US-006",
       "title": "Health check atualizado",
       "priority": 6,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",
