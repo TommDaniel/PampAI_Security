@@ -10,6 +10,7 @@
 - MarianMT uses MarianTokenizer + MarianMTModel from transformers (not AutoTokenizer)
 - Email tokenizer uses max_length=512 (not 128 like URL tokenizer) — tests should not assert 512 is absent from source
 - Test helpers: `_create_mock_model()` and `_create_mock_tokenizer()` for reusable mock creation
+- Plasmo content scripts: export `config: PlasmoCSConfig` for matches/run_at; files in `src/contents/`
 
 # Ralph Progress Log
 Started: Sun Mar 29 16:54:11 PDT 2026
@@ -120,4 +121,21 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - Extension uses Plasmo framework with TypeScript strict mode — `npx tsc --noEmit` for typecheck
   - `analyzeEmail` follows exact same error handling pattern as `analyzeUrl`: try/catch returning `{ offline: true }`
   - Interface fields must match Python Pydantic model field names exactly (snake_case)
+---
+
+## 2026-03-29 - US-010
+- Created `extensao-phishing/src/contents/webmail-detector.ts` — Plasmo content script for Gmail/Outlook
+- PlasmoCSConfig with matches for mail.google.com, outlook.live.com, outlook.office365.com, outlook.office.com
+- Gmail extraction: h2.hP (subject), div.a3s.aiL (body), span.gD[email] (sender) with semantic fallbacks
+- Outlook extraction: [role="document"] (body), [role="heading"] (subject) with semantic selectors
+- MutationObserver on document.body for SPA navigation, 500ms debounce, hash-based deduplication
+- Sends chrome.runtime.sendMessage({ type: "ANALYZE_EMAIL", email: {...} })
+- Fails silently if no selectors match or service worker unavailable
+- Files changed: extensao-phishing/src/contents/webmail-detector.ts
+- **Learnings for future iterations:**
+  - Plasmo content scripts use `export const config: PlasmoCSConfig` for configuration (matches, run_at)
+  - Gmail DOM selectors are fragile — hierarchy approach: specific CSS classes first, then [role]/[data-*] fallbacks
+  - Outlook uses more stable semantic attributes ([role="document"], [role="heading"])
+  - MutationObserver + debounce is the standard pattern for SPA email navigation detection
+  - Hash-based deduplication prevents re-analysis when MutationObserver fires on non-email DOM changes
 ---

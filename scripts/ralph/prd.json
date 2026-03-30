@@ -61,7 +61,7 @@
       "id": "US-010",
       "title": "Content script webmail-detector.ts",
       "priority": 10,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-011",
