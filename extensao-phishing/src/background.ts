@@ -12,7 +12,8 @@ import type { ClientFeatures } from "./utils/clientFeatures"
 import type { ApiResponse } from "./utils/api"
 import { loadBlacklist, isBlacklisted, isWhitelisted } from "./utils/blacklist"
 import { getCached, setCached, clearCache } from "./utils/cache"
-import { analyzeUrl, checkHealth } from "./utils/api"
+import { analyzeUrl, analyzeEmail, checkHealth } from "./utils/api"
+import type { EmailAnalysisResponse } from "./utils/api"
 import { logger } from "./utils/logger"
 
 export type AnalysisSource = "blacklist" | "whitelist" | "cache" | "api" | "offline"
@@ -218,6 +219,78 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             confidence: 0,
             label: "UNKNOWN",
             analysis: "Analysis failed. Fail-open: not blocking.",
+            source: "offline" as AnalysisSource,
+            offline: true
+          }
+        })
+      })
+
+    return true // async response
+  }
+
+  // ---- ANALYZE_EMAIL: webmail content script requests email analysis ----
+  if (message.type === "ANALYZE_EMAIL") {
+    const email = message.email as {
+      subject: string
+      body: string
+      sender: string
+      urls_in_body: string[]
+    }
+    const tabId = sender.tab?.id
+
+    logger.info("Email analysis requested", { sender: email.sender, tabId })
+
+    analyzeEmail(email)
+      .then(async (apiResult) => {
+        if ("offline" in apiResult) {
+          const offlineResult: AnalysisResult & { url: string } = {
+            isPhishing: false,
+            confidence: 0,
+            label: "UNKNOWN",
+            analysis: "API unavailable. Fail-open: not blocking.",
+            source: "offline",
+            offline: true,
+            url: "email:" + email.sender
+          }
+          if (tabId !== undefined) {
+            await storeTabResult(tabId, offlineResult)
+            updateBadge(tabId, offlineResult)
+          }
+          sendResponse({ success: true, result: offlineResult })
+          return
+        }
+
+        const response = apiResult as EmailAnalysisResponse
+        const result: AnalysisResult & { url: string } = {
+          isPhishing: response.is_phishing,
+          confidence: response.confidence,
+          label: response.label,
+          analysis: response.analysis,
+          source: "api",
+          inferenceMs: response.inference_ms,
+          url: "email:" + email.sender
+        }
+
+        if (tabId !== undefined) {
+          await storeTabResult(tabId, result)
+          updateBadge(tabId, result)
+        }
+
+        if (result.isPhishing) {
+          emitNotification(result)
+        }
+
+        sendResponse({ success: true, result })
+      })
+      .catch((err) => {
+        logger.error("Email analysis failed", { error: String(err) })
+        sendResponse({
+          success: true,
+          result: {
+            isPhishing: false,
+            confidence: 0,
+            label: "UNKNOWN",
+            analysis: "Email analysis failed. Fail-open: not blocking.",
             source: "offline" as AnalysisSource,
             offline: true
           }
