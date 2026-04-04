@@ -18,6 +18,13 @@ import { logger } from "./utils/logger"
 
 export type AnalysisSource = "blacklist" | "whitelist" | "cache" | "api" | "offline"
 
+export interface EmailUrlResultData {
+  url: string
+  isPhishing: boolean
+  confidence: number
+  label: string
+}
+
 export interface AnalysisResult {
   isPhishing: boolean
   confidence: number
@@ -27,6 +34,11 @@ export interface AnalysisResult {
   inferenceMs?: number
   modelSource?: string
   offline?: boolean
+  // Email-specific fields (present when url starts with "email:")
+  emailScore?: number
+  urlResults?: EmailUrlResultData[]
+  languageDetected?: string
+  translated?: boolean
 }
 
 // ============================================================
@@ -268,7 +280,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           analysis: response.analysis,
           source: "api",
           inferenceMs: response.inference_ms,
-          url: "email:" + email.sender
+          url: "email:" + email.sender,
+          emailScore: response.email_score,
+          urlResults: response.url_results.map((ur) => ({
+            url: ur.url,
+            isPhishing: ur.is_phishing,
+            confidence: ur.confidence,
+            label: ur.label
+          })),
+          languageDetected: response.language_detected,
+          translated: response.translated
         }
 
         if (tabId !== undefined) {

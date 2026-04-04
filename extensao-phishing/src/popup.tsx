@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from "react"
-import type { AnalysisResult, AnalysisSource } from "./background"
+import type { AnalysisResult, AnalysisSource, EmailUrlResultData } from "./background"
 
 import "./popup.css"
 
@@ -106,6 +106,32 @@ function formatInferenceMs(ms?: number): string {
   if (ms === undefined || ms === null) return "-"
   if (ms < 1000) return `${Math.round(ms)}ms`
   return `${(ms / 1000).toFixed(1)}s`
+}
+
+function emailCardClass(label: string): string {
+  if (label === "PHISHING") return "result-phishing"
+  if (label === "SUSPICIOUS") return "result-suspicious"
+  return "result-legit"
+}
+
+function emailLabelIcon(label: string): string {
+  if (label === "PHISHING") return "⚠ PHISHING"
+  if (label === "SUSPICIOUS") return "⚡ SUSPICIOUS"
+  return "✓ LEGÍTIMO"
+}
+
+function EmailUrlItem({ urlResult }: { urlResult: EmailUrlResultData }) {
+  const cls = urlResult.isPhishing ? "email-url-phishing" : "email-url-legit"
+  const truncUrl =
+    urlResult.url.length > 45
+      ? urlResult.url.slice(0, 45) + "…"
+      : urlResult.url
+  return (
+    <div className={"email-url-item " + cls} title={urlResult.url}>
+      <span className="email-url-text">{truncUrl}</span>
+      <span className="email-url-conf">{Math.round(urlResult.confidence)}%</span>
+    </div>
+  )
 }
 
 function ApiStatusDot({ online }: { online: boolean }) {
@@ -239,6 +265,8 @@ export default function Popup() {
   // ---- Render: result ----
   const isPhishing = result.isPhishing
   const isOffline = result.offline === true
+  const isEmail = result.url.startsWith("email:")
+  const emailSender = isEmail ? result.url.slice(6) : ""
 
   return (
     <div className="popup">
@@ -250,6 +278,15 @@ export default function Popup() {
           <div className="result-label">API Offline</div>
           <div className="result-url" title={result.url}>
             {result.url.length > 55 ? result.url.slice(0, 55) + "…" : result.url}
+          </div>
+        </div>
+      ) : isEmail ? (
+        <div className={"result-card " + emailCardClass(result.label)}>
+          <div className="result-label">
+            {emailLabelIcon(result.label)} {isEmail ? "Análise de Email" : ""}
+          </div>
+          <div className="result-url" title={emailSender}>
+            {emailSender.length > 55 ? emailSender.slice(0, 55) + "…" : emailSender}
           </div>
         </div>
       ) : (
@@ -279,6 +316,31 @@ export default function Popup() {
         </div>
       )}
 
+      {/* Email: idioma e tradução */}
+      {isEmail && !isOffline && result.languageDetected && (
+        <div className="section">
+          <div className="section-title">Idioma</div>
+          <div className="email-lang-row">
+            <span className="email-lang-badge">Idioma: {result.languageDetected}</span>
+            {result.translated && (
+              <span className="email-lang-badge email-lang-translated">Traduzido para EN</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Email: URLs no email */}
+      {isEmail && !isOffline && result.urlResults && result.urlResults.length > 0 && (
+        <div className="section">
+          <div className="section-title">URLs no email</div>
+          <div className="email-urls-list">
+            {result.urlResults.map((ur, i) => (
+              <EmailUrlItem key={i} urlResult={ur} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Métricas */}
       <div className="metrics-row">
         <div className="metric">
@@ -289,10 +351,12 @@ export default function Popup() {
           <span className="metric-label">Fonte</span>
           <span className="metric-value">{sourceLabel(result.source)}</span>
         </div>
-        <div className="metric">
-          <span className="metric-label">Motor</span>
-          <span className="metric-value">{modelSourceLabel(result.modelSource)}</span>
-        </div>
+        {!isEmail && (
+          <div className="metric">
+            <span className="metric-label">Motor</span>
+            <span className="metric-value">{modelSourceLabel(result.modelSource)}</span>
+          </div>
+        )}
         {result.inferenceMs !== undefined && (
           <div className="metric">
             <span className="metric-label">Tempo</span>

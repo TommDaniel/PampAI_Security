@@ -154,6 +154,11 @@ body {
   border: 1px solid #feebc8;
 }
 
+.result-suspicious {
+  background: #fffff0;
+  border: 1px solid #fefcbf;
+}
+
 .result-label {
   font-size: 16px;
   font-weight: 700;
@@ -163,6 +168,7 @@ body {
 .result-phishing .result-label { color: #c53030; }
 .result-legit   .result-label { color: #276749; }
 .result-offline .result-label { color: #c05621; }
+.result-suspicious .result-label { color: #b7791f; }
 
 .result-url {
   font-size: 11px;
@@ -328,3 +334,63 @@ body {
 }
 
 .btn-save:hover { background: #2b6cb0; }
+
+/* ---- Email analysis ---- */
+.email-lang-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.email-lang-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #edf2f7;
+  border-radius: 4px;
+  color: #4a5568;
+}
+
+.email-lang-translated {
+  background: #ebf8ff;
+  color: #2b6cb0;
+}
+
+.email-urls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.email-url-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.email-url-phishing {
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  color: #c53030;
+}
+
+.email-url-legit {
+  background: #f0fff4;
+  border: 1px solid #c6f6d5;
+  color: #276749;
+}
+
+.email-url-text {
+  word-break: break-all;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.email-url-conf {
+  font-weight: 700;
+  flex-shrink: 0;
+}
