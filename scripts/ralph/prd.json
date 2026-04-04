@@ -67,7 +67,7 @@
       "id": "US-011",
       "title": "Handler ANALYZE_EMAIL no background.ts",
       "priority": 11,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-012",

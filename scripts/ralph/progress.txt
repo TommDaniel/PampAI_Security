@@ -139,3 +139,19 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - MutationObserver + debounce is the standard pattern for SPA email navigation detection
   - Hash-based deduplication prevents re-analysis when MutationObserver fires on non-email DOM changes
 ---
+
+## 2026-04-04 - US-011
+- Added ANALYZE_EMAIL handler to chrome.runtime.onMessage listener in background.ts
+- Imports analyzeEmail + EmailAnalysisResponse from api.ts
+- Calls analyzeEmail(message.email), converts EmailAnalysisResponse to AnalysisResult
+- Stores result with url: "email:" + sender via storeTabResult
+- Updates badge via updateBadge, emits notification if phishing detected
+- Handles offline API (fail-open) and catch errors with fail-open response
+- Returns true for async response channel
+- Files changed: extensao-phishing/src/background.ts
+- **Learnings for future iterations:**
+  - ANALYZE_EMAIL handler follows exact same pattern as ANALYZE_URL but without pipeline (whitelist/blacklist/cache)
+  - Email results use "email:" + sender as the url field to distinguish from URL results in popup
+  - EmailAnalysisResponse fields (snake_case) must be mapped to AnalysisResult fields (camelCase)
+  - Offline handling for email is simpler — no cache layer, just direct API call
+---
