@@ -30,18 +30,36 @@ import ast
 # Mock model (identical setup to test_api.py)
 # ------------------------------------------------------------------
 
-def _mock_load_model():
-    import app as app_module
+def _create_mock_model():
+    """Creates a mock model with proper .parameters() returning CPU device."""
     mock_model = MagicMock()
     mock_model.parameters.return_value = iter([torch.tensor([1.0])])
     mock_model.eval.return_value = None
+    return mock_model
+
+
+def _create_mock_tokenizer():
+    """Creates a mock tokenizer returning dummy input_ids and attention_mask."""
     mock_tokenizer = MagicMock()
     mock_tokenizer.return_value = {
         "input_ids": torch.tensor([[101, 102]]),
         "attention_mask": torch.tensor([[1, 1]]),
     }
-    app_module.model = mock_model
-    app_module.tokenizer = mock_tokenizer
+    return mock_tokenizer
+
+
+def _mock_load_model():
+    import app as app_module
+    app_module.model = _create_mock_model()
+    app_module.tokenizer = _create_mock_tokenizer()
+
+    # Also mock email model and tokenizer
+    app_module.email_model = _create_mock_model()
+    app_module.email_tokenizer = _create_mock_tokenizer()
+
+    # Translation model not loaded by default
+    app_module.translation_model = None
+    app_module.translation_tokenizer = None
 
 
 def _set_model_output(logits_values: list):
@@ -50,6 +68,15 @@ def _set_model_output(logits_values: list):
     mock_output.logits = torch.tensor([logits_values])
     app_module.model.__call__ = MagicMock(return_value=mock_output)
     app_module.model.return_value = mock_output
+
+
+def _set_email_model_output(logits_values: list):
+    """Helper to set what the mock email model returns."""
+    import app as app_module
+    mock_output = MagicMock()
+    mock_output.logits = torch.tensor([logits_values])
+    app_module.email_model.__call__ = MagicMock(return_value=mock_output)
+    app_module.email_model.return_value = mock_output
 
 
 _mock_server_features = AsyncMock()
@@ -722,13 +749,222 @@ class TestAPICodeClean:
         assert "onnx" not in source.lower()
 
     def test_tokenizer_max_length_128(self):
+        """URL tokenizer uses max_length=128 (email uses 512)."""
         import app as app_module
         source = open(app_module.__file__).read()
         assert "max_length=128" in source
-        assert "max_length=512" not in source
 
     def test_cors_middleware_configured(self):
         import app as app_module
         source = open(app_module.__file__).read()
         assert "CORSMiddleware" in source
         assert "CORS_ORIGINS" in source
+
+
+# ==================================================================
+# Email Analysis Integration Tests (US-014)
+# ==================================================================
+
+PHISHING_EMAIL = {
+    "subject": "URGENT: Your account has been compromised",
+    "body": "Dear customer, your account has been compromised. Click here immediately to verify your identity and restore access. Failure to do so within 24 hours will result in permanent account closure.",
+    "sender": "security@fake-bank-alert.com",
+    "urls_in_body": [],
+}
+
+LEGIT_EMAIL = {
+    "subject": "Meeting reminder",
+    "body": "Hi team, just a reminder that our weekly standup is tomorrow at 10am. Please prepare your updates.",
+    "sender": "manager@company.com",
+    "urls_in_body": [],
+}
+
+PORTUGUESE_EMAIL = {
+    "subject": "Lembrete de reuniao",
+    "body": "Ola equipe, apenas um lembrete de que nossa reuniao semanal e amanha as 10h. Por favor preparem suas atualizacoes.",
+    "sender": "gerente@empresa.com.br",
+    "urls_in_body": [],
+}
+
+EMAIL_WITH_PHISHING_URL = {
+    "subject": "Check this document",
+    "body": "Please review the attached document for our meeting.",
+    "sender": "colleague@company.com",
+    "urls_in_body": ["http://192.168.1.1.suspicious-login.com/verify"],
+}
+
+
+class TestEmailAnalysisIntegration:
+    """
+    End-to-end integration tests for the email analysis flow.
+    Validates POST /analyze-email with different scenarios.
+    """
+
+    def test_phishing_email_english(self):
+        """POST /analyze-email with English phishing email -> is_phishing: true, email_score > 50."""
+        _set_email_model_output([-3.0, 3.0])  # high phishing probability
+        response = client.post("/analyze-email", json=PHISHING_EMAIL)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_phishing"] is True
+        assert data["label"] == "PHISHING"
+        assert data["email_score"] > 50
+        assert data["confidence"] > 80
+        assert data["inference_ms"] >= 0
+        assert len(data["analysis"]) > 0
+        assert data["url_results"] == []
+
+    def test_legitimate_email(self):
+        """POST /analyze-email with legitimate email -> is_phishing: false."""
+        _set_email_model_output([3.0, -3.0])  # high legit probability
+        response = client.post("/analyze-email", json=LEGIT_EMAIL)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_phishing"] is False
+        assert data["label"] == "LEGITIMO"
+
+    def test_portuguese_email_translation(self):
+        """POST /analyze-email with Portuguese email -> translated: true, language_detected: pt."""
+        import app as app_module
+
+        # Set up translation model mocks
+        app_module.translation_model = _create_mock_model()
+        app_module.translation_tokenizer = _create_mock_tokenizer()
+
+        app_module.translation_model.generate = MagicMock(
+            return_value=torch.tensor([[101, 102, 103]])
+        )
+        app_module.translation_tokenizer.decode = MagicMock(
+            return_value="Hello team, just a reminder that our weekly meeting is tomorrow at 10am."
+        )
+
+        _set_email_model_output([3.0, -3.0])
+
+        with patch("app.langdetect_detect", return_value="pt"):
+            response = client.post("/analyze-email", json=PORTUGUESE_EMAIL)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["translated"] is True
+        assert data["language_detected"] == "pt"
+        assert "is_phishing" in data
+        assert "confidence" in data
+
+        # Cleanup
+        app_module.translation_model = None
+        app_module.translation_tokenizer = None
+
+    def test_email_with_phishing_urls(self):
+        """POST /analyze-email with urls_in_body containing phishing URL -> url_results populated."""
+        _set_email_model_output([3.0, -3.0])  # email itself is legit
+        _set_model_output([-3.0, 3.0])  # URL is phishing
+
+        response = client.post("/analyze-email", json=EMAIL_WITH_PHISHING_URL)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["url_results"]) == 1
+        url_result = data["url_results"][0]
+        assert url_result["url"] == EMAIL_WITH_PHISHING_URL["urls_in_body"][0]
+        assert url_result["is_phishing"] is True
+        assert url_result["label"] == "PHISHING"
+        assert url_result["confidence"] > 0
+
+    def test_email_response_has_all_fields(self):
+        """Email response includes all EmailResponse fields."""
+        _set_email_model_output([3.0, -3.0])
+        data = client.post("/analyze-email", json=LEGIT_EMAIL).json()
+        expected_fields = {
+            "is_phishing", "confidence", "label", "analysis",
+            "inference_ms", "email_score", "url_results",
+            "language_detected", "translated",
+        }
+        assert expected_fields.issubset(set(data.keys()))
+
+    def test_email_model_unavailable_returns_503(self):
+        """POST /analyze-email returns 503 if email model not loaded."""
+        import app as app_module
+        original = app_module.email_model
+        app_module.email_model = None
+        try:
+            resp = client.post("/analyze-email", json=LEGIT_EMAIL)
+            assert resp.status_code == 503
+        finally:
+            app_module.email_model = original
+
+
+class TestHealthEmailIntegration:
+    """Integration test for /health endpoint with email model."""
+
+    def test_health_includes_email_model_loaded(self):
+        """/health returns email_model_loaded: true."""
+        data = client.get("/health").json()
+        assert data["email_model_loaded"] is True
+
+    def test_health_version_4(self):
+        """/health returns version 4.0.0."""
+        data = client.get("/health").json()
+        assert data["version"] == "4.0.0"
+
+    def test_health_all_fields_present(self):
+        """/health has all expected fields."""
+        data = client.get("/health").json()
+        for field in ["status", "model_loaded", "cascade_enabled", "device", "version", "email_model_loaded"]:
+            assert field in data, f"Missing field: {field}"
+
+
+class TestEmailExtensionStructure:
+    """Validate extension has email-related source files."""
+
+    EXTENSION_DIR = os.path.join(os.path.dirname(__file__), "..", "extensao-phishing", "src")
+
+    def test_webmail_detector_exists(self):
+        assert os.path.isfile(os.path.join(self.EXTENSION_DIR, "contents", "webmail-detector.ts"))
+
+    def test_background_handles_analyze_email(self):
+        """background.ts must handle ANALYZE_EMAIL message type."""
+        path = os.path.join(self.EXTENSION_DIR, "background.ts")
+        content = open(path).read()
+        assert "ANALYZE_EMAIL" in content
+
+    def test_api_ts_has_analyze_email_function(self):
+        """api.ts must export analyzeEmail function."""
+        path = os.path.join(self.EXTENSION_DIR, "utils", "api.ts")
+        content = open(path).read()
+        assert "analyzeEmail" in content
+        assert "EmailAnalysisResponse" in content
+
+    def test_popup_handles_email_results(self):
+        """popup.tsx must handle email result display."""
+        path = os.path.join(self.EXTENSION_DIR, "popup.tsx")
+        content = open(path).read()
+        assert "email:" in content  # email: prefix detection
+
+
+class TestEmailAPICodeStructure:
+    """Validate API code has email analysis components."""
+
+    def test_app_has_email_endpoint(self):
+        import app as app_module
+        source = open(app_module.__file__).read()
+        assert "/analyze-email" in source
+
+    def test_app_has_email_models(self):
+        import app as app_module
+        source = open(app_module.__file__).read()
+        assert "email_model" in source
+        assert "email_tokenizer" in source
+        assert "translation_model" in source
+        assert "translation_tokenizer" in source
+
+    def test_app_has_email_thresholds(self):
+        import app as app_module
+        source = open(app_module.__file__).read()
+        assert "EMAIL_PHISHING_THRESHOLD" in source
+        assert "EMAIL_SUSPICIOUS_THRESHOLD" in source
+
+    def test_dockerfile_has_email_model_download(self):
+        """Dockerfile pre-downloads email and translation models."""
+        path = os.path.join(os.path.dirname(__file__), "Dockerfile")
+        content = open(path).read()
+        assert "phishing-email-detection-distilbert" in content
+        assert "opus-mt" in content or "MarianMT" in content or "MarianTokenizer" in content
