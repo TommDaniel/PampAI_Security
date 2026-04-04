@@ -155,3 +155,20 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - EmailAnalysisResponse fields (snake_case) must be mapped to AnalysisResult fields (camelCase)
   - Offline handling for email is simpler — no cache layer, just direct API call
 ---
+
+## 2026-04-04 - US-012
+- Added email-specific rendering to popup.tsx: detects email results via `url.startsWith("email:")`
+- 3-state card: PHISHING (red), SUSPICIOUS (yellow), LEGÍTIMO (green) with appropriate icons
+- Shows sender instead of URL, "Análise de Email" as title
+- Added "URLs no email" section listing each url_result with phishing/legit colors and confidence %
+- Added language detected badge and "Traduzido para EN" indicator
+- Extended AnalysisResult in background.ts with optional email fields: emailScore, urlResults, languageDetected, translated
+- Updated ANALYZE_EMAIL handler to map EmailAnalysisResponse fields to AnalysisResult
+- Added CSS: .result-suspicious, .email-lang-*, .email-url-* styles
+- Files changed: extensao-phishing/src/background.ts, extensao-phishing/src/popup.tsx, extensao-phishing/src/popup.css
+- **Learnings for future iterations:**
+  - Email results are identified by `url.startsWith("email:")` — sender is stored after the "email:" prefix
+  - AnalysisResult needed extension with optional fields rather than a separate type, since TabResult extends it
+  - EmailAnalysisResponse uses snake_case (API), AnalysisResult uses camelCase (extension) — mapping needed in handler
+  - SUSPICIOUS label is email-only (URLs use binary PHISHING/LEGITIMO) — popup must handle 3 states for email
+---
