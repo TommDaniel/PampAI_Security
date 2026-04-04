@@ -85,7 +85,7 @@
       "id": "US-014",
       "title": "Teste de integracao end-to-end do fluxo de email",
       "priority": 14,
-      "passes": false
+      "passes": true
     }
   ]
 }

@@ -191,3 +191,18 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - Memory management critical: del model + gc.collect + torch.cuda.empty_cache between model evaluations
   - Results saved to `resultados/email_*` prefix to distinguish from URL benchmark outputs
 ---
+
+## 2026-04-04 - US-014
+- Added email integration tests to `phishing-api/test_integration.py`
+- Updated `_mock_load_model` to also mock email_model and email_tokenizer (matching test_api.py pattern)
+- Added `_set_email_model_output` helper and `_create_mock_model`/`_create_mock_tokenizer` helpers
+- TestEmailAnalysisIntegration: phishing email (EN), legitimate email, Portuguese email with translation, email with phishing URLs, response schema, 503 when model unavailable
+- TestHealthEmailIntegration: email_model_loaded, version 4.0.0, all fields present
+- TestEmailExtensionStructure: webmail-detector.ts exists, background.ts handles ANALYZE_EMAIL, api.ts has analyzeEmail, popup.tsx handles email results
+- TestEmailAPICodeStructure: /analyze-email endpoint, email models, thresholds, Dockerfile model download
+- Files changed: phishing-api/test_integration.py
+- **Learnings for future iterations:**
+  - CRLF line endings in test_integration.py can cause ENOENT errors on Edit — re-reading resolves it
+  - Integration test mock setup must mirror test_api.py mock setup to avoid inconsistencies
+  - Portuguese email translation test requires mocking langdetect_detect, translation_model.generate, and translation_tokenizer.decode
+---
