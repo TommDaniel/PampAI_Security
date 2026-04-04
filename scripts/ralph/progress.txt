@@ -172,3 +172,22 @@ Started: Sun Mar 29 16:54:11 PDT 2026
   - EmailAnalysisResponse uses snake_case (API), AnalysisResult uses camelCase (extension) — mapping needed in handler
   - SUSPICIOUS label is email-only (URLs use binary PHISHING/LEGITIMO) — popup must handle 3 states for email
 ---
+
+## 2026-04-04 - US-013
+- Created `benchmark-modelos/benchmark_email_phishing.ipynb` — Colab T4-compatible benchmark notebook
+- Cell 1: Setup with GPU check and pip install (transformers, langdetect, datasets, sklearn, matplotlib, seaborn, sentencepiece)
+- Cell 2: Load `cybersectony/PhishingEmailDetectionv2.0` dataset, handle splits, sample if >5000, auto-detect label columns
+- Cell 3: Evaluate DistilBERT baseline (`cybersectony/phishing-email-detection-distilbert_v2.4.1`) — batched inference, classification report, AUC-ROC, latency P50/P95
+- Cell 4: Fine-tune XLM-RoBERTa (`xlm-roberta-base`) for 2 epochs on same dataset for multilingual comparison
+- Cell 5: MarianMT PT->EN translation test with 5 manual Portuguese emails (3 phishing, 2 legit), classify after translation
+- Cell 6: Comparative metrics table (accuracy, F1, precision, recall, AUC-ROC, latency) with styled highlighting
+- Cell 7: Latency comparison charts (boxplot + P50/P95 bars), saved to `resultados/email_comparacao_latencia.png`
+- Cell 8: Full TCC output — confusion matrices, ROC curves, metrics bar chart, CSV exports to `resultados/`
+- Files changed: benchmark-modelos/benchmark_email_phishing.ipynb
+- **Learnings for future iterations:**
+  - Notebook structure follows same pattern as benchmark_modelos_grandes.ipynb (numbered sections, gc.collect between models)
+  - Dataset label column auto-detection handles both string and int labels
+  - XLM-R fine-tuning uses HuggingFace Trainer API for quick 2-epoch training
+  - Memory management critical: del model + gc.collect + torch.cuda.empty_cache between model evaluations
+  - Results saved to `resultados/email_*` prefix to distinguish from URL benchmark outputs
+---

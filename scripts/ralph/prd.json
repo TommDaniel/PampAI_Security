@@ -79,7 +79,7 @@
       "id": "US-013",
       "title": "Notebook de benchmark do modelo de email",
       "priority": 13,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-014",
