@@ -154,3 +154,19 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - `_ts()` helper centralizes datetime→ISO; use for all new endpoints returning timestamps
   - Limit clamping (1-100 for pagination, 1-365 for days) is done in the endpoint, not db layer
 ---
+
+## 2026-04-09 - US-010
+- Created phishing-api/dashboard/index.html: single-file vanilla JS + Chart.js dashboard with login, stats cards, timeline chart, and paginated events table
+- Added `aiofiles>=23.1.0` to phishing-api/requirements.txt (required by FastAPI StaticFiles)
+- Added `StaticFiles` and `RedirectResponse` imports to app.py
+- Mounted `/dashboard-ui` as StaticFiles from `phishing-api/dashboard/` directory; conditional mount checks dir exists (graceful if missing)
+- Added GET /dashboard-ui redirect endpoint (→ /dashboard-ui/) with include_in_schema=False
+- Created phishing-api/test_dashboard_frontend.py with 4 tests: redirect, 200 HTML response, key element presence, direct index.html access
+- **Learnings for future iterations:**
+  - StaticFiles mount must happen after app creation but before route definitions only matters for overlapping routes; placing it after CORS middleware setup works fine
+  - Use `html=True` in StaticFiles to serve index.html for directory requests (enables SPA-style routing)
+  - Guard the mount with `if _DASHBOARD_DIR.is_dir()` to avoid startup crash when dashboard dir is missing
+  - The redirect endpoint (`@app.get("/dashboard-ui")`) is needed because FastAPI's router intercepts before StaticFiles for exact path matches
+  - Single-file HTML dashboard (no build step, no npm) is ideal for this FastAPI project — uses Chart.js CDN, stores api_key in sessionStorage
+  - Dashboard makes same-origin requests (relative URLs) so no CORS config needed for the frontend
+---

@@ -61,7 +61,7 @@
       "id": "US-010",
       "title": "Dashboard — Frontend (aplicacao web)",
       "priority": 10,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-011",
