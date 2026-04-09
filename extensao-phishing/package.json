@@ -25,6 +25,9 @@
   "manifest": {
     "host_permissions": ["<all_urls>"],
     "permissions": ["tabs", "storage", "notifications"],
+    "storage": {
+      "managed_schema": "assets/managed_schema.json"
+    },
     "content_security_policy": {
       "extension_pages": "script-src 'self'; object-src 'self'"
     },

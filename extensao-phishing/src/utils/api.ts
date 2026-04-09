@@ -3,6 +3,7 @@
  */
 
 import type { ClientFeatures } from "./clientFeatures"
+import { getIdentity } from "./identity"
 
 const DEFAULT_API_URL = "http://localhost:8000"
 const TIMEOUT_MS = 5000
@@ -53,6 +54,10 @@ export interface HealthOfflineResponse {
 
 async function getApiUrl(): Promise<string> {
   try {
+    // Prefer managed policy endpoint (set by IT admin) over user-configured value.
+    const identity = await getIdentity()
+    if (identity.apiEndpoint) return identity.apiEndpoint
+
     const data = await chrome.storage.sync.get("apiUrl")
     return data.apiUrl || DEFAULT_API_URL
   } catch {

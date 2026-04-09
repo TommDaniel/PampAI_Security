@@ -15,6 +15,7 @@ import { getCached, setCached, clearCache } from "./utils/cache"
 import { analyzeUrl, analyzeEmail, checkHealth } from "./utils/api"
 import type { EmailAnalysisResponse } from "./utils/api"
 import { logger } from "./utils/logger"
+import { initIdentity, onIdentityChanged } from "./utils/identity"
 
 export type AnalysisSource = "blacklist" | "whitelist" | "cache" | "api" | "offline"
 
@@ -49,10 +50,32 @@ loadBlacklist()
   .then(() => logger.info("Service worker started — blacklist ready"))
   .catch((err) => logger.error("Failed to load blacklist", { error: String(err) }))
 
+// Load enterprise identity from managed storage and cache locally.
+initIdentity()
+  .then((id) =>
+    logger.info("Identity loaded", {
+      orgId: id.orgId ?? "(none)",
+      userEmail: id.userEmail ?? "(none)",
+      hasApiEndpoint: id.apiEndpoint !== null
+    })
+  )
+  .catch((err) => logger.error("Failed to load identity", { error: String(err) }))
+
+// Re-sync identity whenever IT admin updates the managed policy at runtime.
+onIdentityChanged((id) => {
+  logger.info("Managed policy updated — identity refreshed", {
+    orgId: id.orgId ?? "(none)",
+    userEmail: id.userEmail ?? "(none)"
+  })
+})
+
 chrome.runtime.onInstalled.addListener(() => {
   loadBlacklist()
     .then(() => logger.info("Extension installed/updated — blacklist reloaded"))
     .catch((err) => logger.error("Error on onInstalled", { error: String(err) }))
+  initIdentity().catch((err) =>
+    logger.error("Error loading identity on install", { error: String(err) })
+  )
 })
 
 // ============================================================
@@ -175,6 +198,47 @@ async function getTabResult(
 }
 
 // ============================================================
+// Store email analysis history per tab
+// ============================================================
+
+const MAX_EMAIL_HISTORY = 20
+
+async function storeEmailResult(
+  tabId: number,
+  result: AnalysisResult & { url: string; timestamp: number }
+): Promise<void> {
+  try {
+    const { emailHistory = {} } = await chrome.storage.session.get("emailHistory")
+    const history: Array<AnalysisResult & { url: string; timestamp: number }> = emailHistory[tabId] ?? []
+
+    // Deduplicate by sender (url = "email:sender")
+    const existing = history.findIndex((h) => h.url === result.url)
+    if (existing !== -1) {
+      history[existing] = result // update existing
+    } else {
+      history.unshift(result) // newest first
+    }
+
+    // Limit history
+    emailHistory[tabId] = history.slice(0, MAX_EMAIL_HISTORY)
+    await chrome.storage.session.set({ emailHistory })
+  } catch {
+    // session storage may not be available
+  }
+}
+
+async function getEmailHistory(
+  tabId: number
+): Promise<Array<AnalysisResult & { url: string; timestamp: number }>> {
+  try {
+    const { emailHistory = {} } = await chrome.storage.session.get("emailHistory")
+    return emailHistory[tabId] ?? []
+  } catch {
+    return []
+  }
+}
+
+// ============================================================
 // Badge — visual indicator on extension icon
 // ============================================================
 
@@ -255,17 +319,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     analyzeEmail(email)
       .then(async (apiResult) => {
         if ("offline" in apiResult) {
-          const offlineResult: AnalysisResult & { url: string } = {
+          const offlineResult: AnalysisResult & { url: string; timestamp: number } = {
             isPhishing: false,
             confidence: 0,
             label: "UNKNOWN",
             analysis: "API unavailable. Fail-open: not blocking.",
             source: "offline",
             offline: true,
-            url: "email:" + email.sender
+            url: "email:" + email.sender,
+            timestamp: Date.now()
           }
           if (tabId !== undefined) {
             await storeTabResult(tabId, offlineResult)
+            await storeEmailResult(tabId, offlineResult)
             updateBadge(tabId, offlineResult)
           }
           sendResponse({ success: true, result: offlineResult })
@@ -273,7 +339,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         const response = apiResult as EmailAnalysisResponse
-        const result: AnalysisResult & { url: string } = {
+        const result: AnalysisResult & { url: string; timestamp: number } = {
           isPhishing: response.is_phishing,
           confidence: response.confidence,
           label: response.label,
@@ -289,11 +355,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             label: ur.label
           })),
           languageDetected: response.language_detected,
-          translated: response.translated
+          translated: response.translated,
+          timestamp: Date.now()
         }
 
         if (tabId !== undefined) {
           await storeTabResult(tabId, result)
+          await storeEmailResult(tabId, result)
           updateBadge(tabId, result)
         }
 
@@ -341,6 +409,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     checkHealth()
       .then((health) => sendResponse({ health }))
       .catch(() => sendResponse({ health: { offline: true } }))
+
+    return true
+  }
+
+  // ---- GET_EMAIL_HISTORY: popup requests email analysis history ----
+  if (message.type === "GET_EMAIL_HISTORY") {
+    const tabId: number | undefined = message.tabId
+    if (tabId === undefined) {
+      sendResponse({ emails: [] })
+      return true
+    }
+
+    getEmailHistory(tabId)
+      .then((emails) => sendResponse({ emails }))
+      .catch(() => sendResponse({ emails: [] }))
 
     return true
   }

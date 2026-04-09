@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "description": "Enterprise policy configuration for the Anti-Phishing extension.",
+  "properties": {
+    "org_id": {
+      "title": "Organization ID",
+      "description": "Unique identifier for the organization (e.g. 'acme-corp'). Used to attribute phishing detections to the correct org in the dashboard.",
+      "type": "string"
+    },
+    "user_email": {
+      "title": "User Email",
+      "description": "Email address of the user running this extension. Used for event attribution and alerts.",
+      "type": "string"
+    },
+    "api_endpoint": {
+      "title": "API Endpoint",
+      "description": "Base URL of the anti-phishing API server (e.g. 'https://phishing-api.acme.com'). Overrides the default localhost endpoint.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
