@@ -49,7 +49,7 @@
       "id": "US-008",
       "title": "Endpoint de configuracao de alertas",
       "priority": 8,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-009",

@@ -120,3 +120,19 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - SMTP_USER/SMTP_PASSWORD: if both set, starttls() + login() is called; otherwise connects anonymously (e.g. localhost relay)
   - Lazy import `from alerts import send_webhook_alert, send_email_alert` inside the auto-persist block — both in same import line now
 ---
+
+## 2026-04-09 - US-008
+- Added 4 DB helpers to phishing-api/db.py: `list_alert_configs`, `create_alert_config`, `update_alert_config`, `delete_alert_config`
+- Added 3 Pydantic models to app.py: `AlertConfigResponse`, `AlertConfigCreateRequest`, `AlertConfigUpdateRequest`
+- Added `_ts()` helper in app.py to convert datetime → ISO string
+- Added 4 endpoints: GET/POST `/alerts/{org_id}/configs` and PUT/DELETE `/alerts/{org_id}/configs/{config_id}`
+- All endpoints require auth (401 if anonymous, 403 if org mismatch); POST validates alert_type ('webhook'|'email')
+- Created phishing-api/test_alert_configs.py with 18 tests covering: 503/401/403 guards, CRUD happy paths, 404 for missing configs, ISO timestamps
+- **Learnings for future iterations:**
+  - Alert config endpoints follow same auth pattern as reports: require auth (401 anonymous, 403 mismatch)
+  - `update_alert_config` only allows updating `endpoint` and `enabled` — alert_type is immutable after creation
+  - DELETE returns 204 No Content with empty body; no response model needed
+  - SQLAlchemy `.update().returning(...)` only works in PostgreSQL — same pattern as `.insert().returning(...)`
+  - `_ts()` helper centralizes datetime→ISO conversion; reuse for any new endpoint returning timestamps
+  - list_alert_configs raises RuntimeError (not empty list) when DB disabled — consistent with other write ops; test must set DB_ENABLED=False before calling
+---
