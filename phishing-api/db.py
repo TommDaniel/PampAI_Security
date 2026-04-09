@@ -9,6 +9,7 @@ Provides:
 
 import os
 import logging
+from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -147,3 +148,63 @@ async def close_db() -> None:
     """Dispose the async engine connection pool."""
     await engine.dispose()
     logger.info("Pool de conexoes PostgreSQL encerrado.")
+
+
+async def log_event(
+    *,
+    org_id: Optional[str],
+    event_type: str,
+    is_phishing: bool,
+    confidence: float,
+    label: str,
+    url: Optional[str] = None,
+    email_subject: Optional[str] = None,
+    email_sender: Optional[str] = None,
+    analysis: Optional[str] = None,
+    inference_ms: "Optional[float]" = None,
+    source: Optional[str] = None,
+    email_score: "Optional[float]" = None,
+    language_detected: Optional[str] = None,
+    translated: "Optional[bool]" = None,
+    extension_id: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> dict:
+    """Insert a phishing event and return the persisted row as a dict.
+
+    Raises RuntimeError if DB is not available.
+    """
+    from typing import Optional as _Opt  # noqa: F401 — used only for type hints above
+
+    if not DB_ENABLED:
+        raise RuntimeError("Database not available")
+
+    values = dict(
+        org_id=org_id,
+        event_type=event_type,
+        is_phishing=is_phishing,
+        confidence=confidence,
+        label=label,
+        url=url,
+        email_subject=email_subject,
+        email_sender=email_sender,
+        analysis=analysis,
+        inference_ms=inference_ms,
+        source=source,
+        email_score=email_score,
+        language_detected=language_detected,
+        translated=translated,
+        extension_id=extension_id,
+        user_agent=user_agent,
+    )
+
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            result = await session.execute(
+                phishing_events.insert().values(**values).returning(
+                    phishing_events.c.id,
+                    phishing_events.c.created_at,
+                )
+            )
+            row = result.first()
+
+    return {**values, "id": row.id, "created_at": row.created_at}

@@ -11,6 +11,7 @@ from langdetect import detect as langdetect_detect
 import logging
 import os
 from pathlib import Path
+from auth import get_org_id
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -117,6 +118,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class EventCreateRequest(BaseModel):
+    """Modelo de entrada para persistir um evento de analise de phishing"""
+    event_type: str = Field(..., description="Tipo do evento: 'url' ou 'email'")
+    is_phishing: bool = Field(..., description="Resultado da analise")
+    confidence: float = Field(..., description="Confianca da predicao (0-100)")
+    label: str = Field(..., description="Label: PHISHING, LEGITIMO ou SUSPICIOUS")
+    url: Optional[str] = Field(default=None, description="URL analisada (para event_type='url')")
+    email_subject: Optional[str] = Field(default=None, description="Assunto do email (para event_type='email')")
+    email_sender: Optional[str] = Field(default=None, description="Remetente do email")
+    analysis: Optional[str] = Field(default=None, description="Texto descritivo da analise")
+    inference_ms: Optional[float] = Field(default=None, description="Tempo de inferencia em ms")
+    source: Optional[str] = Field(default=None, description="Estagio que decidiu: bert, cascade, catboost")
+    email_score: Optional[float] = Field(default=None, description="Score bruto do modelo de email (0-100)")
+    language_detected: Optional[str] = Field(default=None, description="Idioma detectado")
+    translated: Optional[bool] = Field(default=None, description="Se houve traducao")
+    extension_id: Optional[str] = Field(default=None, description="ID da extensao que enviou o evento")
+    user_agent: Optional[str] = Field(default=None, description="User-Agent do cliente")
+
+
+class EventCreateResponse(BaseModel):
+    """Modelo de resposta apos persistir um evento"""
+    id: int = Field(..., description="ID unico do evento persistido")
+    org_id: Optional[str] = Field(default=None, description="org_id da organizacao (None se anonimo)")
+    event_type: str
+    is_phishing: bool
+    confidence: float
+    label: str
+    url: Optional[str] = None
+    email_subject: Optional[str] = None
+    email_sender: Optional[str] = None
+    analysis: Optional[str] = None
+    inference_ms: Optional[float] = None
+    source: Optional[str] = None
+    email_score: Optional[float] = None
+    language_detected: Optional[str] = None
+    translated: Optional[bool] = None
+    extension_id: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: str = Field(..., description="Timestamp ISO 8601 da criacao do evento")
 
 
 class OrgCreateRequest(BaseModel):
@@ -605,6 +647,72 @@ async def create_organization(request: OrgCreateRequest):
         raise HTTPException(status_code=500, detail=f"Erro ao criar organizacao: {error_msg}")
 
     return OrgCreateResponse(org_id=request.org_id, api_key=api_key, name=request.name)
+
+
+@app.post("/events", response_model=EventCreateResponse, status_code=201)
+async def create_event(
+    request: EventCreateRequest,
+    org_id: Optional[str] = Depends(get_org_id),
+):
+    """Persiste um evento de analise de phishing no banco de dados.
+
+    Requer X-API-Key para associar o evento a uma organizacao.
+    Requisicoes anonimas (sem X-API-Key) sao aceitas mas ficam sem org_id.
+    """
+    from db import DB_ENABLED, log_event
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+
+    if request.event_type not in ("url", "email"):
+        raise HTTPException(status_code=422, detail="event_type deve ser 'url' ou 'email'")
+
+    try:
+        row = await log_event(
+            org_id=org_id,
+            event_type=request.event_type,
+            is_phishing=request.is_phishing,
+            confidence=request.confidence,
+            label=request.label,
+            url=request.url,
+            email_subject=request.email_subject,
+            email_sender=request.email_sender,
+            analysis=request.analysis,
+            inference_ms=request.inference_ms,
+            source=request.source,
+            email_score=request.email_score,
+            language_detected=request.language_detected,
+            translated=request.translated,
+            extension_id=request.extension_id,
+            user_agent=request.user_agent,
+        )
+    except Exception as exc:
+        logger.error(f"Erro ao persistir evento: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro ao persistir evento: {exc}")
+
+    created_at = row["created_at"]
+    created_at_str = created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at)
+
+    return EventCreateResponse(
+        id=row["id"],
+        org_id=row["org_id"],
+        event_type=row["event_type"],
+        is_phishing=row["is_phishing"],
+        confidence=row["confidence"],
+        label=row["label"],
+        url=row["url"],
+        email_subject=row["email_subject"],
+        email_sender=row["email_sender"],
+        analysis=row["analysis"],
+        inference_ms=row["inference_ms"],
+        source=row["source"],
+        email_score=row["email_score"],
+        language_detected=row["language_detected"],
+        translated=row["translated"],
+        extension_id=row["extension_id"],
+        user_agent=row["user_agent"],
+        created_at=created_at_str,
+    )
 
 
 def _build_analysis(is_phishing: bool, confidence: float) -> str:
