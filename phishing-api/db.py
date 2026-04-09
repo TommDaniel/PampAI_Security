@@ -23,6 +23,8 @@ from sqlalchemy import (
     TIMESTAMP,
     Integer,
     func,
+    case,
+    select,
 )
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
@@ -208,3 +210,48 @@ async def log_event(
             row = result.first()
 
     return {**values, "id": row.id, "created_at": row.created_at}
+
+
+async def get_org_summary(org_id: str) -> dict:
+    """Return aggregated statistics for all phishing events belonging to an org.
+
+    Raises RuntimeError if DB is not available.
+    """
+    if not DB_ENABLED:
+        raise RuntimeError("Database not available")
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(
+                func.count(phishing_events.c.id).label("total_events"),
+                func.count(
+                    case((phishing_events.c.is_phishing == True, 1))  # noqa: E712
+                ).label("phishing_count"),
+                func.count(
+                    case((phishing_events.c.is_phishing == False, 1))  # noqa: E712
+                ).label("legitimate_count"),
+                func.count(
+                    case((phishing_events.c.event_type == "url", 1))
+                ).label("url_count"),
+                func.count(
+                    case((phishing_events.c.event_type == "email", 1))
+                ).label("email_count"),
+                func.avg(phishing_events.c.confidence).label("avg_confidence"),
+                func.max(phishing_events.c.created_at).label("last_event_at"),
+            ).where(phishing_events.c.org_id == org_id)
+        )
+        row = result.first()
+
+    avg_conf = row.avg_confidence
+    last_at = row.last_event_at
+
+    return {
+        "org_id": org_id,
+        "total_events": row.total_events or 0,
+        "phishing_count": row.phishing_count or 0,
+        "legitimate_count": row.legitimate_count or 0,
+        "url_count": row.url_count or 0,
+        "email_count": row.email_count or 0,
+        "avg_confidence": round(float(avg_conf), 2) if avg_conf is not None else None,
+        "last_event_at": last_at,
+    }

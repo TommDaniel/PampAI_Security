@@ -174,6 +174,18 @@ class OrgCreateResponse(BaseModel):
     name: Optional[str] = Field(default=None, description="Nome da organizacao")
 
 
+class OrgSummaryResponse(BaseModel):
+    """Modelo de resposta do resumo de eventos de uma organizacao"""
+    org_id: str = Field(..., description="Identificador da organizacao")
+    total_events: int = Field(..., description="Total de eventos registrados")
+    phishing_count: int = Field(..., description="Eventos classificados como phishing")
+    legitimate_count: int = Field(..., description="Eventos classificados como legitimos")
+    url_count: int = Field(..., description="Eventos do tipo URL")
+    email_count: int = Field(..., description="Eventos do tipo email")
+    avg_confidence: Optional[float] = Field(default=None, description="Confianca media das predicoes (0-100)")
+    last_event_at: Optional[str] = Field(default=None, description="Timestamp ISO 8601 do evento mais recente")
+
+
 class ClientFeatures(BaseModel):
     """Features extraidas client-side pela extensao"""
     length: int = Field(..., description="Comprimento total da URL")
@@ -673,6 +685,51 @@ async def create_organization(request: OrgCreateRequest):
         raise HTTPException(status_code=500, detail=f"Erro ao criar organizacao: {error_msg}")
 
     return OrgCreateResponse(org_id=request.org_id, api_key=api_key, name=request.name)
+
+
+@app.get("/reports/{org_id}/summary", response_model=OrgSummaryResponse)
+async def get_org_summary_endpoint(
+    org_id: str,
+    caller_org_id: Optional[str] = Depends(get_org_id),
+):
+    """Retorna um resumo agregado dos eventos de phishing de uma organizacao.
+
+    Requer autenticacao via X-API-Key. Apenas a propria organizacao pode
+    acessar seu resumo (caller org_id deve ser igual ao org_id do path).
+    """
+    from db import DB_ENABLED, get_org_summary
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+
+    if caller_org_id is None:
+        raise HTTPException(status_code=401, detail="Autenticacao obrigatoria para este endpoint")
+
+    if caller_org_id != org_id:
+        raise HTTPException(status_code=403, detail="Acesso negado: voce so pode acessar o resumo da sua propria organizacao")
+
+    try:
+        summary = await get_org_summary(org_id=org_id)
+    except Exception as exc:
+        logger.error(f"Erro ao buscar resumo da organizacao: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar resumo: {exc}")
+
+    last_event_at = summary["last_event_at"]
+    if last_event_at is not None and hasattr(last_event_at, "isoformat"):
+        last_event_at = last_event_at.isoformat()
+    elif last_event_at is not None:
+        last_event_at = str(last_event_at)
+
+    return OrgSummaryResponse(
+        org_id=summary["org_id"],
+        total_events=summary["total_events"],
+        phishing_count=summary["phishing_count"],
+        legitimate_count=summary["legitimate_count"],
+        url_count=summary["url_count"],
+        email_count=summary["email_count"],
+        avg_confidence=summary["avg_confidence"],
+        last_event_at=last_event_at,
+    )
 
 
 @app.post("/events", response_model=EventCreateResponse, status_code=201)
