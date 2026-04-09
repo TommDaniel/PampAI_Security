@@ -203,3 +203,18 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - `X-User-Email` is a custom header for event attribution in the backend — not standard HTTP auth
   - managed_schema.json `additionalProperties: false` — any new managed fields must be added to the schema or Chrome will reject them
 ---
+
+## 2026-04-09 - US-013
+- Updated extensao-phishing/src/background.ts: imported `DecisionLog` type from logger.ts
+- Added `logger.logDecision()` call in ANALYZE_URL handler after `analyzePipeline()` resolves (before sendResponse)
+- Added `logger.logDecision()` call in ANALYZE_EMAIL handler for the offline path (fail-open result)
+- Added `logger.logDecision()` call in ANALYZE_EMAIL handler for the success path (after building the result)
+- Used `satisfies DecisionLog` for type-safe object construction without explicit cast
+- TypeScript typecheck passes (npx tsc --noEmit: no output)
+- **Learnings for future iterations:**
+  - `DecisionLog.label` is `"PHISHING" | "LEGITIMO"` (Portuguese) — map from `isPhishing` boolean, not from `result.label` (which uses English: "PHISHING"/"LEGITIMATE"/"UNKNOWN")
+  - `confidencePct` is a formatted string like "87.4%" — use `result.confidence.toFixed(1) + "%"`
+  - `satisfies DecisionLog` gives compile-time type check without widening the inferred type — preferred over `as DecisionLog`
+  - logDecision persists to `chrome.storage.local` under key "decisions" (separate from general "logs"); max 500 entries
+  - Call logDecision AFTER storeTabResult/updateBadge/emitNotification so the decision is recorded even if storage ops fail
+---

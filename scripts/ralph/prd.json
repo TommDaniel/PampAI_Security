@@ -79,7 +79,7 @@
       "id": "US-013",
       "title": "Extensao — ativar logDecision()",
       "priority": 13,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-014",
