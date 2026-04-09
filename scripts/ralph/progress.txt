@@ -170,3 +170,19 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - Single-file HTML dashboard (no build step, no npm) is ideal for this FastAPI project — uses Chart.js CDN, stores api_key in sessionStorage
   - Dashboard makes same-origin requests (relative URLs) so no CORS config needed for the frontend
 ---
+
+## 2026-04-09 - US-011
+- Created extensao-phishing/src/utils/identity.ts: reads org_id, user_email, api_endpoint from chrome.storage.managed; caches in chrome.storage.local; exports initIdentity(), getIdentity(), onIdentityChanged()
+- Created extensao-phishing/assets/managed_schema.json: JSON Schema for enterprise managed policy fields
+- Updated extensao-phishing/package.json manifest overlay: added "storage": {"managed_schema": "assets/managed_schema.json"}
+- Updated extensao-phishing/src/background.ts: calls initIdentity() on startup and onInstalled; registers onIdentityChanged() listener
+- Updated extensao-phishing/src/utils/api.ts: getApiUrl() now prefers managed policy api_endpoint over sync-stored apiUrl
+- TypeScript typecheck passes (npx tsc --noEmit: no output = no errors)
+- **Learnings for future iterations:**
+  - chrome.storage.managed is read-only for the extension; admin sets values via GPO/Intune/MDM; the "storage" permission in manifest grants read access
+  - Managed storage unavailability (non-enterprise device) is silent — wrap in try/catch and return empty object; this is NOT an error state
+  - Store managed values in chrome.storage.local as a cache so content scripts and popup can access them without re-reading managed each time
+  - In Plasmo, add manifest fields via the "manifest" key in package.json; "storage": {"managed_schema": "..."} works with relative path from build root
+  - api.ts's getIdentity() import creates a circular dependency risk if identity.ts ever imports from api.ts — keep identity.ts as a pure storage module with no API calls
+  - tsc --noEmit with no output = all types OK; silence is success
+---

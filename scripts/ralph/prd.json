@@ -67,7 +67,7 @@
       "id": "US-011",
       "title": "Extensao — managed storage e identificacao",
       "priority": 11,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-012",
