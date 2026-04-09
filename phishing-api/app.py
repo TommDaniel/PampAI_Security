@@ -186,6 +186,30 @@ class OrgSummaryResponse(BaseModel):
     last_event_at: Optional[str] = Field(default=None, description="Timestamp ISO 8601 do evento mais recente")
 
 
+class AlertConfigResponse(BaseModel):
+    """Modelo de resposta para uma configuracao de alerta"""
+    id: int = Field(..., description="ID unico da configuracao")
+    org_id: str = Field(..., description="Identificador da organizacao")
+    alert_type: str = Field(..., description="Tipo de alerta: 'webhook' ou 'email'")
+    endpoint: str = Field(..., description="URL do webhook ou endereco de email")
+    enabled: bool = Field(..., description="Se o alerta esta ativo")
+    created_at: str = Field(..., description="Timestamp ISO 8601 da criacao")
+    updated_at: str = Field(..., description="Timestamp ISO 8601 da ultima atualizacao")
+
+
+class AlertConfigCreateRequest(BaseModel):
+    """Modelo de entrada para criar uma configuracao de alerta"""
+    alert_type: str = Field(..., description="Tipo de alerta: 'webhook' ou 'email'")
+    endpoint: str = Field(..., description="URL do webhook ou endereco de email")
+    enabled: bool = Field(default=True, description="Se o alerta deve estar ativo")
+
+
+class AlertConfigUpdateRequest(BaseModel):
+    """Modelo de entrada para atualizar uma configuracao de alerta"""
+    endpoint: Optional[str] = Field(default=None, description="Nova URL ou email")
+    enabled: Optional[bool] = Field(default=None, description="Ativar ou desativar o alerta")
+
+
 class ClientFeatures(BaseModel):
     """Features extraidas client-side pela extensao"""
     length: int = Field(..., description="Comprimento total da URL")
@@ -735,6 +759,171 @@ async def get_org_summary_endpoint(
         avg_confidence=summary["avg_confidence"],
         last_event_at=last_event_at,
     )
+
+
+def _ts(value) -> str:
+    """Convert a datetime (or string) to ISO 8601 string."""
+    if value is None:
+        return ""
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+@app.get("/alerts/{org_id}/configs", response_model=List[AlertConfigResponse])
+async def list_alert_configs_endpoint(
+    org_id: str,
+    caller_org_id: Optional[str] = Depends(get_org_id),
+):
+    """Lista todas as configuracoes de alertas de uma organizacao.
+
+    Requer autenticacao. Apenas a propria organizacao pode listar suas configs.
+    """
+    from db import DB_ENABLED, list_alert_configs
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+    if caller_org_id is None:
+        raise HTTPException(status_code=401, detail="Autenticacao obrigatoria para este endpoint")
+    if caller_org_id != org_id:
+        raise HTTPException(status_code=403, detail="Acesso negado: voce so pode acessar configs da sua propria organizacao")
+
+    try:
+        rows = await list_alert_configs(org_id=org_id)
+    except Exception as exc:
+        logger.error(f"Erro ao listar alert configs: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro ao listar configs: {exc}")
+
+    return [
+        AlertConfigResponse(
+            id=row["id"],
+            org_id=row["org_id"],
+            alert_type=row["alert_type"],
+            endpoint=row["endpoint"],
+            enabled=row["enabled"],
+            created_at=_ts(row["created_at"]),
+            updated_at=_ts(row["updated_at"]),
+        )
+        for row in rows
+    ]
+
+
+@app.post("/alerts/{org_id}/configs", response_model=AlertConfigResponse, status_code=201)
+async def create_alert_config_endpoint(
+    org_id: str,
+    request: AlertConfigCreateRequest,
+    caller_org_id: Optional[str] = Depends(get_org_id),
+):
+    """Cria uma nova configuracao de alerta para uma organizacao.
+
+    Requer autenticacao. Apenas a propria organizacao pode criar suas configs.
+    alert_type deve ser 'webhook' ou 'email'.
+    """
+    from db import DB_ENABLED, create_alert_config
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+    if caller_org_id is None:
+        raise HTTPException(status_code=401, detail="Autenticacao obrigatoria para este endpoint")
+    if caller_org_id != org_id:
+        raise HTTPException(status_code=403, detail="Acesso negado: voce so pode criar configs da sua propria organizacao")
+    if request.alert_type not in ("webhook", "email"):
+        raise HTTPException(status_code=422, detail="alert_type deve ser 'webhook' ou 'email'")
+
+    try:
+        row = await create_alert_config(
+            org_id=org_id,
+            alert_type=request.alert_type,
+            endpoint=request.endpoint,
+            enabled=request.enabled,
+        )
+    except Exception as exc:
+        logger.error(f"Erro ao criar alert config: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro ao criar config: {exc}")
+
+    return AlertConfigResponse(
+        id=row["id"],
+        org_id=row["org_id"],
+        alert_type=row["alert_type"],
+        endpoint=row["endpoint"],
+        enabled=row["enabled"],
+        created_at=_ts(row["created_at"]),
+        updated_at=_ts(row["updated_at"]),
+    )
+
+
+@app.put("/alerts/{org_id}/configs/{config_id}", response_model=AlertConfigResponse)
+async def update_alert_config_endpoint(
+    org_id: str,
+    config_id: int,
+    request: AlertConfigUpdateRequest,
+    caller_org_id: Optional[str] = Depends(get_org_id),
+):
+    """Atualiza uma configuracao de alerta existente.
+
+    Requer autenticacao. Apenas a propria organizacao pode atualizar suas configs.
+    Apenas 'endpoint' e 'enabled' podem ser atualizados.
+    """
+    from db import DB_ENABLED, update_alert_config
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+    if caller_org_id is None:
+        raise HTTPException(status_code=401, detail="Autenticacao obrigatoria para este endpoint")
+    if caller_org_id != org_id:
+        raise HTTPException(status_code=403, detail="Acesso negado: voce so pode atualizar configs da sua propria organizacao")
+
+    try:
+        row = await update_alert_config(
+            config_id=config_id,
+            org_id=org_id,
+            endpoint=request.endpoint,
+            enabled=request.enabled,
+        )
+    except Exception as exc:
+        logger.error(f"Erro ao atualizar alert config: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar config: {exc}")
+
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Config {config_id} nao encontrada para org '{org_id}'")
+
+    return AlertConfigResponse(
+        id=row["id"],
+        org_id=row["org_id"],
+        alert_type=row["alert_type"],
+        endpoint=row["endpoint"],
+        enabled=row["enabled"],
+        created_at=_ts(row["created_at"]),
+        updated_at=_ts(row["updated_at"]),
+    )
+
+
+@app.delete("/alerts/{org_id}/configs/{config_id}", status_code=204)
+async def delete_alert_config_endpoint(
+    org_id: str,
+    config_id: int,
+    caller_org_id: Optional[str] = Depends(get_org_id),
+):
+    """Remove uma configuracao de alerta.
+
+    Requer autenticacao. Apenas a propria organizacao pode remover suas configs.
+    Retorna 204 No Content em caso de sucesso.
+    """
+    from db import DB_ENABLED, delete_alert_config
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+    if caller_org_id is None:
+        raise HTTPException(status_code=401, detail="Autenticacao obrigatoria para este endpoint")
+    if caller_org_id != org_id:
+        raise HTTPException(status_code=403, detail="Acesso negado: voce so pode remover configs da sua propria organizacao")
+
+    try:
+        deleted = await delete_alert_config(config_id=config_id, org_id=org_id)
+    except Exception as exc:
+        logger.error(f"Erro ao deletar alert config: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro ao deletar config: {exc}")
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Config {config_id} nao encontrada para org '{org_id}'")
 
 
 @app.post("/events", response_model=EventCreateResponse, status_code=201)

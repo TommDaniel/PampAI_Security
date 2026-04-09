@@ -248,6 +248,173 @@ async def get_alert_configs(org_id: str, alert_type: str) -> list[dict]:
     ]
 
 
+async def list_alert_configs(org_id: str) -> list[dict]:
+    """Return all alert configs for an org (both enabled and disabled).
+
+    Raises RuntimeError if DB is not available.
+    """
+    if not DB_ENABLED:
+        raise RuntimeError("Database not available")
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(
+                alert_configs.c.id,
+                alert_configs.c.org_id,
+                alert_configs.c.alert_type,
+                alert_configs.c.endpoint,
+                alert_configs.c.enabled,
+                alert_configs.c.created_at,
+                alert_configs.c.updated_at,
+            ).where(alert_configs.c.org_id == org_id)
+            .order_by(alert_configs.c.id)
+        )
+        rows = result.fetchall()
+
+    return [
+        {
+            "id": row.id,
+            "org_id": row.org_id,
+            "alert_type": row.alert_type,
+            "endpoint": row.endpoint,
+            "enabled": row.enabled,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+        for row in rows
+    ]
+
+
+async def create_alert_config(
+    org_id: str,
+    alert_type: str,
+    endpoint: str,
+    enabled: bool = True,
+) -> dict:
+    """Insert a new alert config and return the persisted row as a dict.
+
+    Raises RuntimeError if DB is not available.
+    """
+    if not DB_ENABLED:
+        raise RuntimeError("Database not available")
+
+    values = dict(org_id=org_id, alert_type=alert_type, endpoint=endpoint, enabled=enabled)
+
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            result = await session.execute(
+                alert_configs.insert().values(**values).returning(
+                    alert_configs.c.id,
+                    alert_configs.c.created_at,
+                    alert_configs.c.updated_at,
+                )
+            )
+            row = result.first()
+
+    return {**values, "id": row.id, "created_at": row.created_at, "updated_at": row.updated_at}
+
+
+async def update_alert_config(
+    config_id: int,
+    org_id: str,
+    endpoint: Optional[str] = None,
+    enabled: Optional[bool] = None,
+) -> Optional[dict]:
+    """Update an alert config by id (scoped to org_id for safety).
+
+    Returns the updated row dict, or None if not found.
+    Raises RuntimeError if DB is not available.
+    """
+    if not DB_ENABLED:
+        raise RuntimeError("Database not available")
+
+    updates: dict = {}
+    if endpoint is not None:
+        updates["endpoint"] = endpoint
+    if enabled is not None:
+        updates["enabled"] = enabled
+
+    if not updates:
+        # Nothing to update — fetch and return current row
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(alert_configs).where(
+                    alert_configs.c.id == config_id,
+                    alert_configs.c.org_id == org_id,
+                )
+            )
+            row = result.first()
+        if row is None:
+            return None
+        return {
+            "id": row.id,
+            "org_id": row.org_id,
+            "alert_type": row.alert_type,
+            "endpoint": row.endpoint,
+            "enabled": row.enabled,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            result = await session.execute(
+                alert_configs.update()
+                .where(
+                    alert_configs.c.id == config_id,
+                    alert_configs.c.org_id == org_id,
+                )
+                .values(**updates)
+                .returning(
+                    alert_configs.c.id,
+                    alert_configs.c.org_id,
+                    alert_configs.c.alert_type,
+                    alert_configs.c.endpoint,
+                    alert_configs.c.enabled,
+                    alert_configs.c.created_at,
+                    alert_configs.c.updated_at,
+                )
+            )
+            row = result.first()
+
+    if row is None:
+        return None
+
+    return {
+        "id": row.id,
+        "org_id": row.org_id,
+        "alert_type": row.alert_type,
+        "endpoint": row.endpoint,
+        "enabled": row.enabled,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    }
+
+
+async def delete_alert_config(config_id: int, org_id: str) -> bool:
+    """Delete an alert config by id (scoped to org_id for safety).
+
+    Returns True if deleted, False if not found.
+    Raises RuntimeError if DB is not available.
+    """
+    if not DB_ENABLED:
+        raise RuntimeError("Database not available")
+
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            result = await session.execute(
+                alert_configs.delete()
+                .where(
+                    alert_configs.c.id == config_id,
+                    alert_configs.c.org_id == org_id,
+                )
+                .returning(alert_configs.c.id)
+            )
+            row = result.first()
+
+    return row is not None
+
+
 async def get_org_summary(org_id: str) -> dict:
     """Return aggregated statistics for all phishing events belonging to an org.
 
