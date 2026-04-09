@@ -91,7 +91,7 @@
       "id": "US-015",
       "title": "Documentacao de deploy enterprise",
       "priority": 15,
-      "passes": false
+      "passes": true
     }
   ]
 }

@@ -219,6 +219,17 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - Call logDecision AFTER storeTabResult/updateBadge/emitNotification so the decision is recorded even if storage ops fail
 ---
 
+## 2026-04-09 - US-015
+- Rewrote phishing-api/README.md as a comprehensive enterprise deployment guide
+- Added sections: Docker Compose quick start, PostgreSQL credentials, API Key creation, dashboard access, webhook + email alert configuration, MDM/GPO extension policy, enterprise API reference table, production hardening checklist, Docker logs commands
+- Updated project structure diagram to include enterprise files (docker-compose.yml, .env.example, auth.py, db.py, alerts.py, migrations/, dashboard/)
+- **Learnings for future iterations:**
+  - README update for enterprise projects: lead with the deploy story (docker compose up), then auth, then features — not with project history
+  - Include a quick-reference API table with auth requirements — saves operators from reading full Swagger docs
+  - Extension MDM/GPO section needs all 4 fields (org_id, user_email, api_key, api_endpoint) and a note that managed storage is read-only for the user
+  - Production hardening checklist (CORS, HTTPS, /admin/orgs protection, volume backup) should always accompany a Docker Compose deploy guide
+---
+
 ## 2026-04-09 - US-014
 - Updated phishing-api/Dockerfile to copy all enterprise files: db.py, auth.py, alerts.py, migrations/, dashboard/
 - Updated phishing-api/docker-compose.yml: added postgres:16-alpine service with health check, wired DATABASE_URL to phishing-api, added named volume postgres_data, added all SMTP env vars, depends_on postgres with service_healthy condition
