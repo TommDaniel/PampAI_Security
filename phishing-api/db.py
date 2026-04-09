@@ -15,6 +15,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     Column,
+    Date,
     Float,
     MetaData,
     String,
@@ -22,6 +23,7 @@ from sqlalchemy import (
     Text,
     TIMESTAMP,
     Integer,
+    cast,
     func,
     case,
     select,
@@ -413,6 +415,126 @@ async def delete_alert_config(config_id: int, org_id: str) -> bool:
             row = result.first()
 
     return row is not None
+
+
+async def list_events(
+    org_id: str,
+    page: int = 1,
+    limit: int = 20,
+    event_type: Optional[str] = None,
+    is_phishing: Optional[bool] = None,
+) -> dict:
+    """Return a paginated list of phishing events for an org, most recent first.
+
+    Raises RuntimeError if DB is not available.
+    Returns {"items": [...], "total": int, "page": int, "limit": int}.
+    """
+    if not DB_ENABLED:
+        raise RuntimeError("Database not available")
+
+    conditions = [phishing_events.c.org_id == org_id]
+    if event_type is not None:
+        conditions.append(phishing_events.c.event_type == event_type)
+    if is_phishing is not None:
+        conditions.append(phishing_events.c.is_phishing == is_phishing)  # noqa: E712
+
+    offset = (page - 1) * limit
+
+    async with AsyncSessionLocal() as session:
+        # Total count for this filter
+        count_result = await session.execute(
+            select(func.count(phishing_events.c.id)).where(*conditions)
+        )
+        total = count_result.scalar() or 0
+
+        # Fetch the requested page
+        result = await session.execute(
+            select(
+                phishing_events.c.id,
+                phishing_events.c.org_id,
+                phishing_events.c.event_type,
+                phishing_events.c.url,
+                phishing_events.c.email_subject,
+                phishing_events.c.email_sender,
+                phishing_events.c.is_phishing,
+                phishing_events.c.confidence,
+                phishing_events.c.label,
+                phishing_events.c.source,
+                phishing_events.c.inference_ms,
+                phishing_events.c.created_at,
+            )
+            .where(*conditions)
+            .order_by(phishing_events.c.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        rows = result.fetchall()
+
+    items = [
+        {
+            "id": row.id,
+            "org_id": row.org_id,
+            "event_type": row.event_type,
+            "url": row.url,
+            "email_subject": row.email_subject,
+            "email_sender": row.email_sender,
+            "is_phishing": row.is_phishing,
+            "confidence": row.confidence,
+            "label": row.label,
+            "source": row.source,
+            "inference_ms": row.inference_ms,
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
+
+    return {"items": items, "total": total, "page": page, "limit": limit}
+
+
+async def get_timeline(org_id: str, days: int = 30) -> list:
+    """Return daily event counts for the last N days for an org.
+
+    Raises RuntimeError if DB is not available.
+    Returns list of {"date": "YYYY-MM-DD", "total": int, "phishing_count": int, "legitimate_count": int}.
+    """
+    if not DB_ENABLED:
+        raise RuntimeError("Database not available")
+
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    day_col = cast(phishing_events.c.created_at, Date)
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(
+                day_col.label("date"),
+                func.count(phishing_events.c.id).label("total"),
+                func.count(
+                    case((phishing_events.c.is_phishing == True, 1))  # noqa: E712
+                ).label("phishing_count"),
+                func.count(
+                    case((phishing_events.c.is_phishing == False, 1))  # noqa: E712
+                ).label("legitimate_count"),
+            )
+            .where(
+                phishing_events.c.org_id == org_id,
+                phishing_events.c.created_at >= cutoff,
+            )
+            .group_by(day_col)
+            .order_by(day_col)
+        )
+        rows = result.fetchall()
+
+    return [
+        {
+            "date": str(row.date),
+            "total": row.total,
+            "phishing_count": row.phishing_count,
+            "legitimate_count": row.legitimate_count,
+        }
+        for row in rows
+    ]
 
 
 async def get_org_summary(org_id: str) -> dict:

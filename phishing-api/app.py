@@ -210,6 +210,45 @@ class AlertConfigUpdateRequest(BaseModel):
     enabled: Optional[bool] = Field(default=None, description="Ativar ou desativar o alerta")
 
 
+class DashboardEventItem(BaseModel):
+    """Um evento individual listado no dashboard"""
+    id: int = Field(..., description="ID unico do evento")
+    org_id: Optional[str] = Field(default=None, description="org_id da organizacao")
+    event_type: str = Field(..., description="Tipo do evento: 'url' ou 'email'")
+    url: Optional[str] = Field(default=None, description="URL analisada")
+    email_subject: Optional[str] = Field(default=None, description="Assunto do email")
+    email_sender: Optional[str] = Field(default=None, description="Remetente do email")
+    is_phishing: bool = Field(..., description="Resultado da analise")
+    confidence: float = Field(..., description="Confianca da predicao (0-100)")
+    label: str = Field(..., description="Label: PHISHING, LEGITIMO ou SUSPICIOUS")
+    source: Optional[str] = Field(default=None, description="Estagio que decidiu: bert, cascade, catboost")
+    inference_ms: Optional[float] = Field(default=None, description="Tempo de inferencia em ms")
+    created_at: str = Field(..., description="Timestamp ISO 8601")
+
+
+class DashboardEventsResponse(BaseModel):
+    """Resposta paginada de eventos para o dashboard"""
+    items: List[DashboardEventItem] = Field(..., description="Lista de eventos")
+    total: int = Field(..., description="Total de eventos correspondentes ao filtro")
+    page: int = Field(..., description="Pagina atual")
+    limit: int = Field(..., description="Itens por pagina")
+
+
+class TimelinePoint(BaseModel):
+    """Contagem de eventos em um dia"""
+    date: str = Field(..., description="Data no formato YYYY-MM-DD")
+    total: int = Field(..., description="Total de eventos no dia")
+    phishing_count: int = Field(..., description="Eventos de phishing no dia")
+    legitimate_count: int = Field(..., description="Eventos legitimos no dia")
+
+
+class DashboardTimelineResponse(BaseModel):
+    """Serie temporal de eventos para o dashboard"""
+    org_id: str = Field(..., description="Identificador da organizacao")
+    days: int = Field(..., description="Numero de dias incluidos")
+    points: List[TimelinePoint] = Field(..., description="Contagens diarias")
+
+
 class ClientFeatures(BaseModel):
     """Features extraidas client-side pela extensao"""
     length: int = Field(..., description="Comprimento total da URL")
@@ -1207,6 +1246,119 @@ async def predict(
     except Exception as e:
         logger.error(f"Erro na predicao: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro na predicao: {str(e)}")
+
+
+@app.get("/dashboard/{org_id}/events", response_model=DashboardEventsResponse)
+async def get_dashboard_events(
+    org_id: str,
+    page: int = 1,
+    limit: int = 20,
+    event_type: Optional[str] = None,
+    is_phishing: Optional[bool] = None,
+    caller_org_id: Optional[str] = Depends(get_org_id),
+):
+    """Lista eventos de phishing de uma organizacao com paginacao e filtros opcionais.
+
+    Query params:
+    - page: numero da pagina (padrao 1)
+    - limit: itens por pagina (padrao 20, max 100)
+    - event_type: filtrar por 'url' ou 'email'
+    - is_phishing: filtrar por true (phishing) ou false (legitimo)
+
+    Requer autenticacao. Apenas a propria organizacao pode acessar seus eventos.
+    """
+    from db import DB_ENABLED, list_events
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+    if caller_org_id is None:
+        raise HTTPException(status_code=401, detail="Autenticacao obrigatoria para este endpoint")
+    if caller_org_id != org_id:
+        raise HTTPException(status_code=403, detail="Acesso negado: voce so pode acessar eventos da sua propria organizacao")
+
+    # Clamp limit to 1-100
+    limit = max(1, min(limit, 100))
+    page = max(1, page)
+
+    try:
+        result = await list_events(
+            org_id=org_id,
+            page=page,
+            limit=limit,
+            event_type=event_type,
+            is_phishing=is_phishing,
+        )
+    except Exception as exc:
+        logger.error(f"Erro ao listar eventos do dashboard: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro ao listar eventos: {exc}")
+
+    return DashboardEventsResponse(
+        items=[
+            DashboardEventItem(
+                id=item["id"],
+                org_id=item["org_id"],
+                event_type=item["event_type"],
+                url=item["url"],
+                email_subject=item["email_subject"],
+                email_sender=item["email_sender"],
+                is_phishing=item["is_phishing"],
+                confidence=item["confidence"],
+                label=item["label"],
+                source=item["source"],
+                inference_ms=item["inference_ms"],
+                created_at=_ts(item["created_at"]),
+            )
+            for item in result["items"]
+        ],
+        total=result["total"],
+        page=result["page"],
+        limit=result["limit"],
+    )
+
+
+@app.get("/dashboard/{org_id}/timeline", response_model=DashboardTimelineResponse)
+async def get_dashboard_timeline(
+    org_id: str,
+    days: int = 30,
+    caller_org_id: Optional[str] = Depends(get_org_id),
+):
+    """Retorna contagens diarias de eventos dos ultimos N dias para grafico de tendencias.
+
+    Query params:
+    - days: numero de dias incluidos (padrao 30, max 365)
+
+    Requer autenticacao. Apenas a propria organizacao pode acessar seus dados.
+    """
+    from db import DB_ENABLED, get_timeline
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+    if caller_org_id is None:
+        raise HTTPException(status_code=401, detail="Autenticacao obrigatoria para este endpoint")
+    if caller_org_id != org_id:
+        raise HTTPException(status_code=403, detail="Acesso negado: voce so pode acessar dados da sua propria organizacao")
+
+    days = max(1, min(days, 365))
+
+    try:
+        points = await get_timeline(org_id=org_id, days=days)
+    except Exception as exc:
+        logger.error(f"Erro ao buscar timeline do dashboard: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar timeline: {exc}")
+
+    return DashboardTimelineResponse(
+        org_id=org_id,
+        days=days,
+        points=[
+            TimelinePoint(
+                date=pt["date"],
+                total=pt["total"],
+                phishing_count=pt["phishing_count"],
+                legitimate_count=pt["legitimate_count"],
+            )
+            for pt in points
+        ],
+    )
 
 
 if __name__ == "__main__":
