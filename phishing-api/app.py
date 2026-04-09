@@ -528,7 +528,7 @@ async def analyze_email(
     from db import DB_ENABLED, log_event
     if DB_ENABLED:
         try:
-            await log_event(
+            row = await log_event(
                 org_id=org_id,
                 event_type="email",
                 is_phishing=is_phishing,
@@ -542,6 +542,10 @@ async def analyze_email(
                 language_detected=language_detected,
                 translated=was_translated,
             )
+            if is_phishing and org_id:
+                import asyncio
+                from alerts import send_webhook_alert
+                asyncio.ensure_future(send_webhook_alert(org_id=org_id, event=row))
         except Exception as db_exc:
             logger.warning(f"Auto-persist falhou (analyze-email): {db_exc}")
 
@@ -924,9 +928,10 @@ async def predict_batch(
         from db import DB_ENABLED, log_event
         if DB_ENABLED:
             async def _persist_batch():
+                from alerts import send_webhook_alert
                 for req, (is_phishing, confidence, label, analysis, inference_ms, source) in zip(requests, results):
                     try:
-                        await log_event(
+                        row = await log_event(
                             org_id=org_id,
                             event_type="url",
                             is_phishing=is_phishing,
@@ -937,6 +942,8 @@ async def predict_batch(
                             inference_ms=round(inference_ms, 2),
                             source=source,
                         )
+                        if is_phishing and org_id:
+                            await send_webhook_alert(org_id=org_id, event=row)
                     except Exception as db_exc:
                         logger.warning(f"Auto-persist falhou (predict-batch) para {req.url}: {db_exc}")
             asyncio.ensure_future(_persist_batch())
@@ -985,7 +992,7 @@ async def predict(
         from db import DB_ENABLED, log_event
         if DB_ENABLED:
             try:
-                await log_event(
+                row = await log_event(
                     org_id=org_id,
                     event_type="url",
                     is_phishing=is_phishing,
@@ -996,6 +1003,10 @@ async def predict(
                     inference_ms=round(inference_ms, 2),
                     source=source,
                 )
+                if is_phishing and org_id:
+                    import asyncio
+                    from alerts import send_webhook_alert
+                    asyncio.ensure_future(send_webhook_alert(org_id=org_id, event=row))
             except Exception as db_exc:
                 logger.warning(f"Auto-persist falhou (predict): {db_exc}")
 

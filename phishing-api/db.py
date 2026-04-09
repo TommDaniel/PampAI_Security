@@ -212,6 +212,42 @@ async def log_event(
     return {**values, "id": row.id, "created_at": row.created_at}
 
 
+async def get_alert_configs(org_id: str, alert_type: str) -> list[dict]:
+    """Return enabled alert configs for an org and type ('webhook' or 'email').
+
+    Returns an empty list if DB is not available or no configs found.
+    """
+    if not DB_ENABLED:
+        return []
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(
+                alert_configs.c.id,
+                alert_configs.c.org_id,
+                alert_configs.c.alert_type,
+                alert_configs.c.endpoint,
+                alert_configs.c.enabled,
+            ).where(
+                alert_configs.c.org_id == org_id,
+                alert_configs.c.alert_type == alert_type,
+                alert_configs.c.enabled == True,  # noqa: E712
+            )
+        )
+        rows = result.fetchall()
+
+    return [
+        {
+            "id": row.id,
+            "org_id": row.org_id,
+            "alert_type": row.alert_type,
+            "endpoint": row.endpoint,
+            "enabled": row.enabled,
+        }
+        for row in rows
+    ]
+
+
 async def get_org_summary(org_id: str) -> dict:
     """Return aggregated statistics for all phishing events belonging to an org.
 
