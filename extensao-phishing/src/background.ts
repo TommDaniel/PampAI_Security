@@ -15,6 +15,7 @@ import { getCached, setCached, clearCache } from "./utils/cache"
 import { analyzeUrl, analyzeEmail, checkHealth } from "./utils/api"
 import type { EmailAnalysisResponse } from "./utils/api"
 import { logger } from "./utils/logger"
+import type { DecisionLog } from "./utils/logger"
 import { initIdentity, onIdentityChanged } from "./utils/identity"
 
 export type AnalysisSource = "blacklist" | "whitelist" | "cache" | "api" | "offline"
@@ -284,6 +285,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           emitNotification(result)
         }
 
+        logger.logDecision({
+          timestamp: new Date().toISOString(),
+          url,
+          isPhishing: result.isPhishing,
+          confidence: result.confidence,
+          confidencePct: `${result.confidence.toFixed(1)}%`,
+          label: result.isPhishing ? "PHISHING" : "LEGITIMO",
+          analysis: result.analysis,
+          source: result.source,
+          inferenceMs: result.inferenceMs ?? 0
+        } satisfies DecisionLog)
+
         sendResponse({ success: true, result })
       })
       .catch((err) => {
@@ -334,6 +347,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await storeEmailResult(tabId, offlineResult)
             updateBadge(tabId, offlineResult)
           }
+
+          logger.logDecision({
+            timestamp: new Date().toISOString(),
+            url: "email:" + email.sender,
+            isPhishing: false,
+            confidence: 0,
+            confidencePct: "0.0%",
+            label: "LEGITIMO",
+            analysis: offlineResult.analysis,
+            source: "offline",
+            inferenceMs: 0
+          } satisfies DecisionLog)
+
           sendResponse({ success: true, result: offlineResult })
           return
         }
@@ -368,6 +394,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (result.isPhishing) {
           emitNotification(result)
         }
+
+        logger.logDecision({
+          timestamp: new Date().toISOString(),
+          url: "email:" + email.sender,
+          isPhishing: result.isPhishing,
+          confidence: result.confidence,
+          confidencePct: `${result.confidence.toFixed(1)}%`,
+          label: result.isPhishing ? "PHISHING" : "LEGITIMO",
+          analysis: result.analysis,
+          source: result.source,
+          inferenceMs: result.inferenceMs ?? 0
+        } satisfies DecisionLog)
 
         sendResponse({ success: true, result })
       })
