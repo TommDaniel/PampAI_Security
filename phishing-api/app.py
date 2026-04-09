@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import torch
@@ -118,6 +120,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Dashboard web frontend — served from /dashboard-ui/
+_DASHBOARD_DIR = Path(__file__).parent / "dashboard"
+if _DASHBOARD_DIR.is_dir():
+    app.mount("/dashboard-ui", StaticFiles(directory=str(_DASHBOARD_DIR), html=True), name="dashboard-ui")
+
+
+@app.get("/dashboard-ui", include_in_schema=False)
+async def redirect_dashboard():
+    """Redirect /dashboard-ui → /dashboard-ui/ so the browser loads index.html."""
+    return RedirectResponse(url="/dashboard-ui/")
 
 
 class EventCreateRequest(BaseModel):

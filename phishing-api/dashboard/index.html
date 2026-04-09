@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Anti-Phishing</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3e;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-hover: #4f52d6;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --radius: 10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Login ─────────────────────────────────────────────── */
+    #login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .login-card h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .login-card p.subtitle {
+      color: var(--muted);
+      margin-bottom: 32px;
+      font-size: 13px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      margin-bottom: 18px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus { border-color: var(--accent); }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      width: 100%;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 7px 14px;
+      font-size: 13px;
+    }
+
+    .btn-secondary:hover { border-color: var(--accent); color: var(--text); }
+
+    .error-msg {
+      color: var(--danger);
+      font-size: 13px;
+      margin-top: -10px;
+      margin-bottom: 14px;
+    }
+
+    /* ── App shell ─────────────────────────────────────────── */
+    #app { display: none; flex-direction: column; min-height: 100vh; }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    header h1 { font-size: 16px; font-weight: 700; }
+    .header-org { color: var(--muted); font-size: 13px; }
+
+    main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
+
+    /* ── Stats cards ──────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .stat-card .label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-card .value.danger { color: var(--danger); }
+    .stat-card .value.success { color: var(--success); }
+    .stat-card .value.accent { color: var(--accent); }
+    .stat-card .value.warning { color: var(--warning); }
+
+    .stat-card .sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* ── Chart ──────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      gap: 12px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .days-selector {
+      display: flex;
+      gap: 4px;
+    }
+
+    .days-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 4px 10px;
+      font-size: 12px;
+      border-radius: 4px;
+    }
+
+    .days-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .days-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+
+    .chart-container { position: relative; height: 220px; }
+
+    /* ── Events table ──────────────────────────────────────── */
+    .filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+
+    select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    select:focus { border-color: var(--accent); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+    tbody td {
+      padding: 10px 12px;
+      vertical-align: middle;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-danger { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .badge-success { background: rgba(34,197,94,0.15); color: var(--success); }
+    .badge-url { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    .badge-email { background: rgba(245,158,11,0.15); color: var(--warning); }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .pagination-info { color: var(--muted); font-size: 12px; }
+
+    .page-btns { display: flex; gap: 6px; }
+
+    .page-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      font-size: 13px;
+      border-radius: 6px;
+      min-width: 34px;
+    }
+
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .page-btn.active { background: var(--accent); border-color: var(--accent); }
+    .page-btn:hover:not(:disabled):not(.active) { border-color: var(--accent); }
+
+    /* ── Misc ─────────────────────────────────────────────── */
+    .loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px;
+    }
+
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px;
+      font-size: 13px;
+    }
+
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 6px;
+    }
+
+    .refresh-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    .url-cell {
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--muted);
+    }
+
+    .confidence-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .confidence-bar span { font-size: 12px; color: var(--muted); min-width: 36px; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>Anti-Phishing Dashboard</h1>
+    <p class="subtitle">Acesse com as credenciais da sua organizacao</p>
+
+    <label for="input-org">ID da Organizacao</label>
+    <input type="text" id="input-org" placeholder="ex: acme-corp" autocomplete="username" />
+
+    <label for="input-key">API Key</label>
+    <input type="password" id="input-key" placeholder="64 caracteres hex" autocomplete="current-password" />
+
+    <div id="login-error" class="error-msg" style="display:none"></div>
+
+    <button class="btn-primary" id="btn-login">Entrar</button>
+  </div>
+</div>
+
+<!-- ══════════════ APP ══════════════ -->
+<div id="app">
+  <header>
+    <div>
+      <h1>Anti-Phishing Dashboard</h1>
+      <div class="header-org" id="header-org"></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="refresh-btn" id="btn-refresh">Atualizar</button>
+      <button class="btn-secondary" id="btn-logout">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Stats -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="loading">Carregando...</div>
+    </div>
+
+    <!-- Timeline chart -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Tendencia de Eventos</span>
+        <div class="days-selector" id="days-selector">
+          <button class="days-btn" data-days="7">7d</button>
+          <button class="days-btn active" data-days="30">30d</button>
+          <button class="days-btn" data-days="90">90d</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="timeline-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Events table -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Eventos</span>
+        <div class="filters">
+          <select id="filter-type">
+            <option value="">Todos os tipos</option>
+            <option value="url">URL</option>
+            <option value="email">Email</option>
+          </select>
+          <select id="filter-verdict">
+            <option value="">Todos os veredictos</option>
+            <option value="true">Phishing</option>
+            <option value="false">Legitimo</option>
+          </select>
+          <select id="filter-limit">
+            <option value="20">20 por pagina</option>
+            <option value="50">50 por pagina</option>
+            <option value="100">100 por pagina</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="events-container">
+        <div class="loading">Carregando...</div>
+      </div>
+
+      <div class="pagination" id="pagination" style="display:none">
+        <div class="pagination-info" id="pagination-info"></div>
+        <div class="page-btns" id="page-btns"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────
+  let orgId = null;
+  let apiKey = null;
+  let currentPage = 1;
+  let currentDays = 30;
+  let totalEvents = 0;
+  let timelineChart = null;
+
+  // ── Helpers ────────────────────────────────────────────────
+  function apiUrl(path) {
+    return path; // same-origin
+  }
+
+  async function apiFetch(path) {
+    const res = await fetch(apiUrl(path), {
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw Object.assign(new Error(body.detail || res.statusText), { status: res.status });
+    }
+    return res.json();
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  function fmtConfidence(v) {
+    if (v == null) return '—';
+    return (v * 100).toFixed(1) + '%';
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Auth ───────────────────────────────────────────────────
+  document.getElementById('btn-login').addEventListener('click', doLogin);
+  document.getElementById('input-key').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('input-org').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  async function doLogin() {
+    const org = document.getElementById('input-org').value.trim();
+    const key = document.getElementById('input-key').value.trim();
+    const errEl = document.getElementById('login-error');
+    const btn = document.getElementById('btn-login');
+
+    errEl.style.display = 'none';
+
+    if (!org || !key) {
+      errEl.textContent = 'Preencha todos os campos.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Verificando...';
+
+    try {
+      // Validate creds by hitting summary endpoint
+      const res = await fetch(`/reports/${encodeURIComponent(org)}/summary`, {
+        headers: { 'X-API-Key': key },
+      });
+      if (res.status === 401) throw new Error('API Key invalida.');
+      if (res.status === 403) throw new Error('Acesso negado para esta organizacao.');
+      if (res.status === 503) throw new Error('Banco de dados indisponivel. Verifique a configuracao do servidor.');
+      if (!res.ok) throw new Error('Erro ao verificar credenciais.');
+
+      orgId = org;
+      apiKey = key;
+      sessionStorage.setItem('orgId', orgId);
+      sessionStorage.setItem('apiKey', apiKey);
+      showApp();
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+  }
+
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    orgId = null; apiKey = null;
+    sessionStorage.removeItem('orgId');
+    sessionStorage.removeItem('apiKey');
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+  });
+
+  // ── App bootstrap ──────────────────────────────────────────
+  function showApp() {
+    document.getElementById('login-screen').style.display = 'none';
+    const appEl = document.getElementById('app');
+    appEl.style.display = 'flex';
+    document.getElementById('header-org').textContent = `Organizacao: ${orgId}`;
+    loadAll();
+  }
+
+  document.getElementById('btn-refresh').addEventListener('click', loadAll);
+
+  function loadAll() {
+    loadStats();
+    loadTimeline(currentDays);
+    currentPage = 1;
+    loadEvents();
+  }
+
+  // ── Stats ──────────────────────────────────────────────────
+  async function loadStats() {
+    const grid = document.getElementById('stats-grid');
+    grid.innerHTML = '<div class="loading">Carregando...</div>';
+    try {
+      const s = await apiFetch(`/reports/${encodeURIComponent(orgId)}/summary`);
+      const phishRate = s.total_events > 0
+        ? ((s.phishing_count / s.total_events) * 100).toFixed(1)
+        : '0.0';
+      grid.innerHTML = `
+        <div class="stat-card">
+          <div class="label">Total de Eventos</div>
+          <div class="value accent">${s.total_events.toLocaleString('pt-BR')}</div>
+          <div class="sub">desde o inicio</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Phishing</div>
+          <div class="value danger">${s.phishing_count.toLocaleString('pt-BR')}</div>
+          <div class="sub">${phishRate}% do total</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Legitimos</div>
+          <div class="value success">${s.legitimate_count.toLocaleString('pt-BR')}</div>
+          <div class="sub">${(100 - parseFloat(phishRate)).toFixed(1)}% do total</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Analises de URL</div>
+          <div class="value">${s.url_count.toLocaleString('pt-BR')}</div>
+          <div class="sub">tipo url</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Analises de Email</div>
+          <div class="value warning">${s.email_count.toLocaleString('pt-BR')}</div>
+          <div class="sub">tipo email</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Confianca Media</div>
+          <div class="value">${s.avg_confidence != null ? (s.avg_confidence).toFixed(1) + '%' : '—'}</div>
+          <div class="sub">${s.last_event_at ? 'ultimo: ' + fmtDate(s.last_event_at) : 'sem eventos'}</div>
+        </div>
+      `;
+    } catch (e) {
+      grid.innerHTML = `<div class="empty">Erro ao carregar estatisticas: ${escHtml(e.message)}</div>`;
+    }
+  }
+
+  // ── Timeline ──────────────────────────────────────────────
+  document.getElementById('days-selector').addEventListener('click', e => {
+    const btn = e.target.closest('[data-days]');
+    if (!btn) return;
+    currentDays = parseInt(btn.dataset.days, 10);
+    document.querySelectorAll('.days-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadTimeline(currentDays);
+  });
+
+  async function loadTimeline(days) {
+    try {
+      const data = await apiFetch(`/dashboard/${encodeURIComponent(orgId)}/timeline?days=${days}`);
+      renderChart(data.points);
+    } catch (e) {
+      // swallow — chart stays blank on error
+      if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
+    }
+  }
+
+  function renderChart(points) {
+    const labels = points.map(p => p.date);
+    const totalData = points.map(p => p.total);
+    const phishData = points.map(p => p.phishing_count);
+    const legitData = points.map(p => p.legitimate_count);
+
+    if (timelineChart) timelineChart.destroy();
+
+    const ctx = document.getElementById('timeline-chart').getContext('2d');
+    timelineChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Total',
+            data: totalData,
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99,102,241,0.1)',
+            borderWidth: 2,
+            pointRadius: 2,
+            fill: true,
+            tension: 0.3,
+          },
+          {
+            label: 'Phishing',
+            data: phishData,
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239,68,68,0.05)',
+            borderWidth: 2,
+            pointRadius: 2,
+            fill: false,
+            tension: 0.3,
+          },
+          {
+            label: 'Legitimos',
+            data: legitData,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.05)',
+            borderWidth: 2,
+            pointRadius: 2,
+            fill: false,
+            tension: 0.3,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: '#94a3b8', boxWidth: 12, font: { size: 12 } },
+          },
+          tooltip: {
+            backgroundColor: '#1a1d27',
+            borderColor: '#2a2d3e',
+            borderWidth: 1,
+            titleColor: '#e2e8f0',
+            bodyColor: '#94a3b8',
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: '#94a3b8', font: { size: 11 }, maxTicksLimit: 10 },
+            grid: { color: 'rgba(255,255,255,0.04)' },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 },
+            grid: { color: 'rgba(255,255,255,0.04)' },
+          },
+        },
+      },
+    });
+  }
+
+  // ── Events ─────────────────────────────────────────────────
+  document.getElementById('filter-type').addEventListener('change', () => { currentPage = 1; loadEvents(); });
+  document.getElementById('filter-verdict').addEventListener('change', () => { currentPage = 1; loadEvents(); });
+  document.getElementById('filter-limit').addEventListener('change', () => { currentPage = 1; loadEvents(); });
+
+  async function loadEvents() {
+    const container = document.getElementById('events-container');
+    const paginationEl = document.getElementById('pagination');
+    container.innerHTML = '<div class="loading">Carregando...</div>';
+    paginationEl.style.display = 'none';
+
+    const type = document.getElementById('filter-type').value;
+    const verdict = document.getElementById('filter-verdict').value;
+    const limit = parseInt(document.getElementById('filter-limit').value, 10);
+
+    let qs = `?page=${currentPage}&limit=${limit}`;
+    if (type) qs += `&event_type=${encodeURIComponent(type)}`;
+    if (verdict !== '') qs += `&is_phishing=${verdict}`;
+
+    try {
+      const data = await apiFetch(`/dashboard/${encodeURIComponent(orgId)}/events${qs}`);
+      totalEvents = data.total;
+      renderEvents(data.items);
+      renderPagination(data.page, data.limit, data.total);
+    } catch (e) {
+      container.innerHTML = `<div class="empty">Erro ao carregar eventos: ${escHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderEvents(items) {
+    const container = document.getElementById('events-container');
+    if (!items.length) {
+      container.innerHTML = '<div class="empty">Nenhum evento encontrado com os filtros aplicados.</div>';
+      return;
+    }
+
+    const rows = items.map(ev => {
+      const typeBadge = ev.event_type === 'url'
+        ? `<span class="badge badge-url">URL</span>`
+        : `<span class="badge badge-email">Email</span>`;
+      const verdictBadge = ev.is_phishing
+        ? `<span class="badge badge-danger">Phishing</span>`
+        : `<span class="badge badge-success">Legitimo</span>`;
+      const subject = ev.email_subject ? escHtml(ev.email_subject) : '';
+      const sender = ev.email_sender ? escHtml(ev.email_sender) : '';
+      const detail = subject
+        ? `<span title="${subject}">${subject.length > 40 ? subject.slice(0,40)+'…' : subject}</span>`
+        : (ev.url ? `<span class="url-cell" title="${escHtml(ev.url)}">${escHtml(ev.url)}</span>` : '—');
+
+      const source = ev.source ? `<span style="color:var(--muted);font-size:11px">${escHtml(ev.source)}</span>` : '—';
+      const conf = ev.confidence != null ? fmtConfidence(ev.confidence) : '—';
+
+      return `
+        <tr>
+          <td style="color:var(--muted);font-size:12px">#${ev.id}</td>
+          <td>${typeBadge}</td>
+          <td>${verdictBadge}</td>
+          <td>${detail}</td>
+          <td>${conf}</td>
+          <td>${source}</td>
+          <td style="color:var(--muted);font-size:12px;white-space:nowrap">${fmtDate(ev.created_at)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Tipo</th>
+            <th>Veredicto</th>
+            <th>Alvo</th>
+            <th>Confianca</th>
+            <th>Origem</th>
+            <th>Data</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  function renderPagination(page, limit, total) {
+    const paginationEl = document.getElementById('pagination');
+    if (total === 0) return;
+
+    const totalPages = Math.ceil(total / limit);
+    const start = (page - 1) * limit + 1;
+    const end = Math.min(page * limit, total);
+
+    document.getElementById('pagination-info').textContent =
+      `${start}–${end} de ${total.toLocaleString('pt-BR')} eventos`;
+
+    // Show at most 5 page buttons
+    const btns = [];
+    const range = buildPageRange(page, totalPages, 5);
+    for (const p of range) {
+      if (p === '...') {
+        btns.push(`<span style="color:var(--muted);padding:0 4px">…</span>`);
+      } else {
+        btns.push(
+          `<button class="page-btn ${p === page ? 'active' : ''}" data-page="${p}">${p}</button>`
+        );
+      }
+    }
+
+    const prevDisabled = page <= 1 ? 'disabled' : '';
+    const nextDisabled = page >= totalPages ? 'disabled' : '';
+
+    document.getElementById('page-btns').innerHTML = `
+      <button class="page-btn" data-page="${page - 1}" ${prevDisabled}>&#8249;</button>
+      ${btns.join('')}
+      <button class="page-btn" data-page="${page + 1}" ${nextDisabled}>&#8250;</button>
+    `;
+
+    paginationEl.style.display = 'flex';
+  }
+
+  function buildPageRange(current, total, window) {
+    if (total <= window + 2) return Array.from({length: total}, (_, i) => i + 1);
+    const half = Math.floor(window / 2);
+    let start = Math.max(2, current - half);
+    let end = Math.min(total - 1, current + half);
+    if (current - half <= 2) end = Math.min(total - 1, window);
+    if (current + half >= total - 1) start = Math.max(2, total - window + 1);
+
+    const pages = [1];
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push('...');
+    pages.push(total);
+    return pages;
+  }
+
+  document.getElementById('page-btns').addEventListener('click', e => {
+    const btn = e.target.closest('[data-page]');
+    if (!btn || btn.disabled) return;
+    const p = parseInt(btn.dataset.page, 10);
+    if (isNaN(p) || p < 1) return;
+    const limit = parseInt(document.getElementById('filter-limit').value, 10);
+    const totalPages = Math.ceil(totalEvents / limit);
+    if (p > totalPages) return;
+    currentPage = p;
+    loadEvents();
+    window.scrollTo({ top: document.getElementById('app').querySelector('main').offsetTop, behavior: 'smooth' });
+  });
+
+  // ── Session restore ────────────────────────────────────────
+  (function init() {
+    const savedOrg = sessionStorage.getItem('orgId');
+    const savedKey = sessionStorage.getItem('apiKey');
+    if (savedOrg && savedKey) {
+      orgId = savedOrg;
+      apiKey = savedKey;
+      document.getElementById('input-org').value = orgId;
+      showApp();
+    }
+  })();
+</script>
+</body>
+</html>
