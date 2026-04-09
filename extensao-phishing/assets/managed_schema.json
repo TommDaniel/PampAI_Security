@@ -16,6 +16,11 @@
       "title": "API Endpoint",
       "description": "Base URL of the anti-phishing API server (e.g. 'https://phishing-api.acme.com'). Overrides the default localhost endpoint.",
       "type": "string"
+    },
+    "api_key": {
+      "title": "API Key",
+      "description": "Authentication key for the anti-phishing API (X-API-Key header). Issued per organization by the IT administrator.",
+      "type": "string"
     }
   },
   "additionalProperties": false

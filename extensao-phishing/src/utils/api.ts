@@ -65,6 +65,23 @@ async function getApiUrl(): Promise<string> {
   }
 }
 
+/**
+ * Build auth/identity headers from the cached identity.
+ * X-API-Key is sent when an API key is configured (enterprise only).
+ * X-User-Email is sent when a user email is configured (for event attribution).
+ */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const identity = await getIdentity()
+    const headers: Record<string, string> = {}
+    if (identity.apiKey) headers["X-API-Key"] = identity.apiKey
+    if (identity.userEmail) headers["X-User-Email"] = identity.userEmail
+    return headers
+  } catch {
+    return {}
+  }
+}
+
 async function fetchWithTimeout(
   url: string,
   options: RequestInit
@@ -87,10 +104,10 @@ export async function analyzeUrl(
   features: ClientFeatures
 ): Promise<ApiResponse | ApiOfflineResponse> {
   try {
-    const apiUrl = await getApiUrl()
+    const [apiUrl, authHeaders] = await Promise.all([getApiUrl(), getAuthHeaders()])
     const response = await fetchWithTimeout(`${apiUrl}/predict`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ url, client_features: features })
     })
     if (!response.ok) {
@@ -109,10 +126,10 @@ export async function analyzeEmail(email: {
   urls_in_body: string[]
 }): Promise<EmailAnalysisResponse | ApiOfflineResponse> {
   try {
-    const apiUrl = await getApiUrl()
+    const [apiUrl, authHeaders] = await Promise.all([getApiUrl(), getAuthHeaders()])
     const response = await fetchWithTimeout(`${apiUrl}/analyze-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(email)
     })
     if (!response.ok) {
@@ -128,9 +145,10 @@ export async function checkHealth(): Promise<
   HealthResponse | HealthOfflineResponse
 > {
   try {
-    const apiUrl = await getApiUrl()
+    const [apiUrl, authHeaders] = await Promise.all([getApiUrl(), getAuthHeaders()])
     const response = await fetchWithTimeout(`${apiUrl}/health`, {
-      method: "GET"
+      method: "GET",
+      headers: authHeaders
     })
     if (!response.ok) {
       return { offline: true }

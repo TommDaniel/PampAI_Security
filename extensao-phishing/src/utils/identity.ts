@@ -6,6 +6,7 @@
  *   org_id       — organization identifier (e.g. "acme-corp")
  *   user_email   — user's email address (e.g. "alice@acme.com")
  *   api_endpoint — API base URL override (e.g. "https://phishing-api.acme.com")
+ *   api_key      — authentication key for the API (X-API-Key header)
  *
  * Fallback order: managed → local cache → defaults
  */
@@ -16,12 +17,14 @@ export interface Identity {
   orgId: string | null
   userEmail: string | null
   apiEndpoint: string | null
+  apiKey: string | null
 }
 
 const DEFAULT_IDENTITY: Identity = {
   orgId: null,
   userEmail: null,
-  apiEndpoint: null
+  apiEndpoint: null,
+  apiKey: null
 }
 
 // ── Read from managed storage ────────────────────────────────
@@ -31,12 +34,14 @@ async function readManaged(): Promise<Partial<Identity>> {
     const data = await chrome.storage.managed.get([
       "org_id",
       "user_email",
-      "api_endpoint"
+      "api_endpoint",
+      "api_key"
     ])
     return {
       orgId: (data.org_id as string) || null,
       userEmail: (data.user_email as string) || null,
-      apiEndpoint: (data.api_endpoint as string) || null
+      apiEndpoint: (data.api_endpoint as string) || null,
+      apiKey: (data.api_key as string) || null
     }
   } catch {
     // managed storage unavailable (e.g. not enterprise-managed) — not an error
@@ -74,7 +79,8 @@ export async function initIdentity(): Promise<Identity> {
     userEmail:
       managed.userEmail ?? local?.userEmail ?? DEFAULT_IDENTITY.userEmail,
     apiEndpoint:
-      managed.apiEndpoint ?? local?.apiEndpoint ?? DEFAULT_IDENTITY.apiEndpoint
+      managed.apiEndpoint ?? local?.apiEndpoint ?? DEFAULT_IDENTITY.apiEndpoint,
+    apiKey: managed.apiKey ?? local?.apiKey ?? DEFAULT_IDENTITY.apiKey
   }
 
   await saveLocal(identity)
