@@ -15,17 +15,30 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Pre-download email phishing and translation models
+# Pre-download email phishing model (required)
 RUN python -c "\
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, MarianTokenizer, MarianMTModel; \
+from transformers import AutoTokenizer, AutoModelForSequenceClassification; \
 AutoTokenizer.from_pretrained('cybersectony/phishing-email-detection-distilbert_v2.4.1'); \
-AutoModelForSequenceClassification.from_pretrained('cybersectony/phishing-email-detection-distilbert_v2.4.1'); \
-MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-tc-big-pt-en'); \
-MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-tc-big-pt-en')"
+AutoModelForSequenceClassification.from_pretrained('cybersectony/phishing-email-detection-distilbert_v2.4.1')"
+
+# Pre-download translation model (optional — may require HF auth)
+RUN python -c "\
+try:\n\
+    from transformers import MarianTokenizer, MarianMTModel;\n\
+    MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-tc-big-pt-en');\n\
+    MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-tc-big-pt-en');\n\
+    print('Translation model downloaded')\n\
+except Exception as e:\n\
+    print(f'Translation model skipped: {e}')" || true
 
 # Copy application code
 COPY app.py .
 COPY server_features.py .
+COPY db.py .
+COPY auth.py .
+COPY alerts.py .
+COPY migrations/ migrations/
+COPY dashboard/ dashboard/
 
 # Expose API port
 EXPOSE 8000

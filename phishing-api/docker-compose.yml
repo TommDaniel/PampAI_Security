@@ -1,15 +1,42 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: phishing-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-phishing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-phishing}
+      POSTGRES_DB: ${POSTGRES_DB:-phishing}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-phishing} -d ${POSTGRES_DB:-phishing}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   phishing-api:
     build: .
     container_name: phishing-api
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
       - ./model:/app/model
     environment:
       - PYTHONUNBUFFERED=1
       - MODEL_PATH=/app/model
-      - CORS_ORIGINS=*
+      - CATBOOST_PATH=/app/model/catboost_cascata.cbm
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-phishing}:${POSTGRES_PASSWORD:-phishing}@postgres:5432/${POSTGRES_DB:-phishing}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - SMTP_HOST=${SMTP_HOST:-localhost}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-alerts@phishing-guard.local}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -17,3 +44,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+
+volumes:
+  postgres_data:
