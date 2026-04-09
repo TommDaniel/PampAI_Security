@@ -1,91 +1,97 @@
 {
-  "project": "Email Phishing Analysis Endpoint",
-  "branchName": "ralph/email-phishing-analysis",
-  "description": "Add email phishing detection to existing API using DistilBERT + MarianMT translation, with browser extension integration for Gmail/Outlook webmail analysis.",
+  "project": "Enterprise Backend — Persistencia, Autenticacao, Dashboard e Alertas",
+  "branchName": "ralph/enterprise-backend",
+  "description": "Evoluir a plataforma anti-phishing para enterprise: PostgreSQL para persistencia de eventos, autenticacao por API Key por organizacao, dashboard interativo para supervisores, e sistema de alertas (webhook + email) quando phishing e detectado.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Pydantic models para email",
+      "title": "Schema PostgreSQL e conexao",
       "priority": 1,
       "passes": true
     },
     {
       "id": "US-002",
-      "title": "Carregar modelos de email e traducao no startup",
+      "title": "Autenticacao por API Key",
       "priority": 2,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-003",
-      "title": "Funcao de deteccao de idioma e traducao",
+      "title": "Endpoint POST /events para persistir analises",
       "priority": 3,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-004",
-      "title": "Funcao de analise de URLs do email",
+      "title": "Persistencia automatica nos endpoints existentes",
       "priority": 4,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-005",
-      "title": "Endpoint POST /analyze-email",
+      "title": "Endpoint GET /reports/{org_id}/summary",
       "priority": 5,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-006",
-      "title": "Health check atualizado",
+      "title": "Sistema de alertas — webhook",
       "priority": 6,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-007",
-      "title": "Testes unitarios do endpoint de email",
+      "title": "Sistema de alertas — email",
       "priority": 7,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-008",
-      "title": "Atualizar Dockerfile",
+      "title": "Endpoint de configuracao de alertas",
       "priority": 8,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-009",
-      "title": "Interface EmailAnalysisResponse no api.ts",
+      "title": "Dashboard — Backend (API de dados)",
       "priority": 9,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-010",
-      "title": "Content script webmail-detector.ts",
+      "title": "Dashboard — Frontend (aplicacao web)",
       "priority": 10,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-011",
-      "title": "Handler ANALYZE_EMAIL no background.ts",
+      "title": "Extensao — managed storage e identificacao",
       "priority": 11,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-012",
-      "title": "Popup com visualizacao de resultado de email",
+      "title": "Extensao — enviar identificacao nos requests",
       "priority": 12,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-013",
-      "title": "Notebook de benchmark do modelo de email",
+      "title": "Extensao — ativar logDecision()",
       "priority": 13,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-014",
-      "title": "Teste de integracao end-to-end do fluxo de email",
+      "title": "Infraestrutura — Docker Compose completo",
       "priority": 14,
-      "passes": true
+      "passes": false
+    },
+    {
+      "id": "US-015",
+      "title": "Documentacao de deploy enterprise",
+      "priority": 15,
+      "passes": false
     }
   ]
 }
