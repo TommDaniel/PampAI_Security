@@ -37,7 +37,7 @@
       "id": "US-006",
       "title": "Sistema de alertas — webhook",
       "priority": 6,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",

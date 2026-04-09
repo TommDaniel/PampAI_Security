@@ -1,4 +1,6 @@
 ## Codebase Patterns
+- Webhook alert pattern: create alerts.py with send_webhook_alert(org_id, event); call from auto-persist with asyncio.ensure_future(); guard with `if is_phishing and org_id`
+- httpx.AsyncClient is available (in requirements.txt); use for async HTTP in alerts system
 - phishing-api/app.py uses Pydantic BaseModel + Field for all request/response models
 - API is FastAPI (not Flask), running on Uvicorn; lifespan context manager handles startup/shutdown
 - DB connection uses SQLAlchemy async (create_async_engine + async_sessionmaker) with asyncpg driver
@@ -85,4 +87,18 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - For protected endpoints where caller must be the resource owner: check `caller_org_id != path_org_id` → 403
   - Test dependency override: `app.dependency_overrides[get_org_id] = lambda: async_fn()` where async_fn is a zero-arg async function returning the mocked value; always `app.dependency_overrides.clear()` in finally
   - `patch("db.get_org_summary", AsyncMock(...))` — patch on the db module, not app module (consistent with log_event pattern)
+---
+
+## 2026-04-09 - US-006
+- Created phishing-api/alerts.py with `send_webhook_alert(org_id, event)` and `_build_payload()` helpers
+- Added `get_alert_configs(org_id, alert_type)` to phishing-api/db.py: queries alert_configs table for enabled entries
+- Modified phishing-api/app.py: auto-persist in /predict, /analyze-email and /predict-batch now capture the returned row and fire `asyncio.ensure_future(send_webhook_alert(...))` when `is_phishing=True and org_id is not None`
+- Created phishing-api/test_webhook.py with 11 tests covering: POST to configured endpoint, no-op when empty configs, HTTP error graceful handling, config fetch failure graceful handling, multiple endpoints, payload structure, created_at ISO conversion, /predict webhook trigger, /predict no webhook on legitimate, /predict no webhook on anonymous
+- **Learnings for future iterations:**
+  - httpx.AsyncClient is already in requirements.txt — use for async outbound HTTP (alerts, integrations)
+  - Webhook pattern: `asyncio.ensure_future(send_webhook_alert(...))` inside the existing try/except block in auto-persist — fires async without blocking the response
+  - auto-persist previously used `await log_event(...)` discarding the return value; for US-006 we capture it as `row = await log_event(...)` then pass to alert
+  - Guard webhook with `if is_phishing and org_id:` — anonymous requests (org_id=None) have no alert config to look up
+  - `get_alert_configs()` returns [] (not raises) when DB_ENABLED=False — safe to call without DB guard
+  - Lazy import pattern: `from alerts import send_webhook_alert` inside the auto-persist block (consistent with `from db import log_event` pattern)
 ---
