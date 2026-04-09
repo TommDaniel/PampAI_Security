@@ -73,7 +73,7 @@
       "id": "US-012",
       "title": "Extensao — enviar identificacao nos requests",
       "priority": 12,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-013",

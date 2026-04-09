@@ -2,6 +2,7 @@
 - Alert pattern (webhook + email): add send_*_alert(org_id, event) to alerts.py; call both from auto-persist with asyncio.ensure_future(); guard with `if is_phishing and org_id`
 - Email alert: uses Python built-in smtplib (no new deps); config via SMTP_HOST/PORT/USER/PASSWORD/FROM env vars; `endpoint` in alert_configs is the recipient email address
 - Webhook alert pattern: create alerts.py with send_webhook_alert(org_id, event); call from auto-persist with asyncio.ensure_future(); guard with `if is_phishing and org_id`
+- Extension auth header pattern: getAuthHeaders() returns {X-API-Key, X-User-Email} from cached identity; spread into fetch headers; returns {} if no identity configured (anonymous requests still work)
 - httpx.AsyncClient is available (in requirements.txt); use for async HTTP in alerts system
 - phishing-api/app.py uses Pydantic BaseModel + Field for all request/response models
 - API is FastAPI (not Flask), running on Uvicorn; lifespan context manager handles startup/shutdown
@@ -185,4 +186,20 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - In Plasmo, add manifest fields via the "manifest" key in package.json; "storage": {"managed_schema": "..."} works with relative path from build root
   - api.ts's getIdentity() import creates a circular dependency risk if identity.ts ever imports from api.ts — keep identity.ts as a pure storage module with no API calls
   - tsc --noEmit with no output = all types OK; silence is success
+---
+
+## 2026-04-09 - US-012
+- Added `api_key` field to extensao-phishing/assets/managed_schema.json (admin-provisioned API key via MDM/GPO)
+- Updated `Identity` interface in identity.ts: added `apiKey: string | null` field
+- Updated `readManaged()` to also read `api_key` from managed storage
+- Updated `initIdentity()` to merge `apiKey` with same priority order (managed → local cache → default null)
+- Added `getAuthHeaders()` helper in api.ts: returns `X-API-Key` when apiKey set, `X-User-Email` when userEmail set
+- Updated `analyzeUrl()`, `analyzeEmail()`, `checkHealth()` in api.ts to spread auth headers into each request (parallel fetch with `Promise.all([getApiUrl(), getAuthHeaders()])`)
+- TypeScript typecheck passes (npx tsc --noEmit: no output)
+- **Learnings for future iterations:**
+  - Auth headers are sent only when configured (enterprise-only) — consumer devices get no headers, API accepts anonymous requests (org_id=None)
+  - `getAuthHeaders()` uses a try/catch and returns `{}` on failure — never blocks the request
+  - `Promise.all([getApiUrl(), getAuthHeaders()])` fetches both in parallel to minimize latency
+  - `X-User-Email` is a custom header for event attribution in the backend — not standard HTTP auth
+  - managed_schema.json `additionalProperties: false` — any new managed fields must be added to the schema or Chrome will reject them
 ---
