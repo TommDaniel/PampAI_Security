@@ -10,6 +10,8 @@
 - Auth dependency `get_org_id` in auth.py: returns None (anonymous) or org_id string; raises 401 for bad key, 503 if DB down
 - Admin org creation: POST /admin/orgs (no auth required for bootstrap); returns api_key
 - Auth is OPTIONAL on existing endpoints — anonymous requests (no X-API-Key) are allowed
+- log_event() in db.py uses `.returning(id, created_at)` — merge with values dict for full row; created_at is a Python datetime, call .isoformat() for JSON
+- Patch `db.log_event` in tests (not `app.log_event`) — endpoint uses `from db import log_event` inside handler
 
 # Ralph Progress Log
 Started: Thu Apr  9 11:13:07 PDT 2026
@@ -40,4 +42,17 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - Auth is optional (anonymous requests return None org_id) — consistent with nullable org_id in phishing_events
   - create_org raises Exception on duplicate org_id (unique constraint) — catch and convert to 409 in endpoint
   - Tests use AsyncMock for session context manager pattern: mock_cm.__aenter__ = AsyncMock(return_value=mock_session)
+---
+
+## 2026-04-09 - US-003
+- Added `log_event()` helper to phishing-api/db.py: inserts into phishing_events table using `.returning(id, created_at)` and returns a dict with all values + id + created_at
+- Added `EventCreateRequest` and `EventCreateResponse` Pydantic models to app.py
+- Added `POST /events` endpoint to app.py: optional auth via `get_org_id` dependency, DB_ENABLED guard, event_type validation ('url'|'email'), delegates to `log_event()`, returns 201 with full event data
+- Imported `get_org_id` from auth at top of app.py (not lazily) and added `Optional` import to db.py
+- Created phishing-api/test_events.py with 10 unit/integration tests covering: 503 on DB disabled, 422 on invalid event_type, 201 for URL/email events, anonymous org_id=None, schema validation, created_at as ISO string
+- **Learnings for future iterations:**
+  - `phishing_events.insert().values(**values).returning(col1, col2)` returns only the RETURNING columns; merge with original values dict for full row
+  - `get_org_id` can be used as `Depends(get_org_id)` in endpoint signatures without lazy import — it's already imported at top of app.py
+  - Test pattern: patch `db.log_event` (not `app.log_event`) since the endpoint does `from db import log_event` inside the handler
+  - `created_at` from asyncpg/SQLAlchemy RETURNING is a Python `datetime` object; call `.isoformat()` before returning in JSON response
 ---

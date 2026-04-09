@@ -19,7 +19,7 @@
       "id": "US-003",
       "title": "Endpoint POST /events para persistir analises",
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",
