@@ -85,7 +85,7 @@
       "id": "US-014",
       "title": "Infraestrutura — Docker Compose completo",
       "priority": 14,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-015",

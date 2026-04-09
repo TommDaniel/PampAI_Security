@@ -218,3 +218,16 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - logDecision persists to `chrome.storage.local` under key "decisions" (separate from general "logs"); max 500 entries
   - Call logDecision AFTER storeTabResult/updateBadge/emitNotification so the decision is recorded even if storage ops fail
 ---
+
+## 2026-04-09 - US-014
+- Updated phishing-api/Dockerfile to copy all enterprise files: db.py, auth.py, alerts.py, migrations/, dashboard/
+- Updated phishing-api/docker-compose.yml: added postgres:16-alpine service with health check, wired DATABASE_URL to phishing-api, added named volume postgres_data, added all SMTP env vars, depends_on postgres with service_healthy condition
+- Created phishing-api/.env.example: documents all configurable env vars (POSTGRES_USER/PASSWORD/DB, API_PORT, CORS_ORIGINS, SMTP_*)
+- **Learnings for future iterations:**
+  - postgres:16-alpine image has pg_isready built in — use `pg_isready -U $USER -d $DB` for health check (no client install needed)
+  - `depends_on: condition: service_healthy` ensures API waits for postgres to be ready before starting (requires healthcheck on postgres service)
+  - docker-compose.yml ${VAR:-default} syntax supports fallback defaults — no .env file required for basic local dev
+  - app.py already calls `metadata.create_all()` in init_db() on startup — no separate migration container or entrypoint script needed
+  - .env.example should NOT be .env (committed as example only); users copy and customize
+  - Docker is unavailable in devcontainer — validate YAML syntax with Node.js or Python instead of `docker compose config`
+---
