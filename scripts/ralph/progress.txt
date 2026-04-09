@@ -14,6 +14,9 @@
 - Patch `db.log_event` in tests (not `app.log_event`) — endpoint uses `from db import log_event` inside handler
 - Auto-persist pattern: guard `if DB_ENABLED:`, call `await log_event(...)`, wrap in try/except — never fail the response
 - Batch auto-persist: use `asyncio.ensure_future(_persist_batch())` to avoid blocking response
+- Reports endpoint: require auth (401 if no key), then 403 if caller_org_id != path org_id; use dependency_overrides in tests
+- SQLAlchemy conditional counts: `func.count(case((table.c.col == val, 1)))` — counts non-null results (requires `case` imported from sqlalchemy)
+- Test auth overrides: `app.dependency_overrides[get_org_id] = lambda: async_fn()` — always clear after test with `app.dependency_overrides.clear()`
 
 # Ralph Progress Log
 Started: Thu Apr  9 11:13:07 PDT 2026
@@ -69,4 +72,17 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - For batch endpoints, use `asyncio.ensure_future(_persist_batch())` so persistence is truly non-blocking (runs after response is sent)
   - Adding `Depends(get_org_id)` to existing endpoints is backwards-compatible — anonymous requests (no X-API-Key) continue to work with org_id=None
   - To test auto-persist: set `db_module.DB_ENABLED = True`, patch `db.log_event`, call endpoint, assert `mock_log.assert_called_once()`
+---
+
+## 2026-04-09 - US-005
+- Added `get_org_summary()` to phishing-api/db.py: single-query aggregation using `func.count(case(...))` for conditional counts, `func.avg`, `func.max` on phishing_events filtered by org_id
+- Added `case` and `select` to SQLAlchemy imports in db.py
+- Added `OrgSummaryResponse` Pydantic model to app.py
+- Added `GET /reports/{org_id}/summary` endpoint: requires auth (401 anonymous), 403 on org_id mismatch, 503 if DB disabled, returns summary stats
+- Created phishing-api/test_reports.py with 7 tests covering: 503 on DB disabled, 401 anonymous, 403 mismatch, 200 correct schema, ISO string last_event_at, empty org zeros
+- **Learnings for future iterations:**
+  - SQLAlchemy conditional count pattern: `func.count(case((table.c.col == val, 1)))` — must import `case` from sqlalchemy
+  - For protected endpoints where caller must be the resource owner: check `caller_org_id != path_org_id` → 403
+  - Test dependency override: `app.dependency_overrides[get_org_id] = lambda: async_fn()` where async_fn is a zero-arg async function returning the mocked value; always `app.dependency_overrides.clear()` in finally
+  - `patch("db.get_org_summary", AsyncMock(...))` — patch on the db module, not app module (consistent with log_event pattern)
 ---
