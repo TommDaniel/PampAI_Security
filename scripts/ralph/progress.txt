@@ -1,4 +1,6 @@
 ## Codebase Patterns
+- Alert pattern (webhook + email): add send_*_alert(org_id, event) to alerts.py; call both from auto-persist with asyncio.ensure_future(); guard with `if is_phishing and org_id`
+- Email alert: uses Python built-in smtplib (no new deps); config via SMTP_HOST/PORT/USER/PASSWORD/FROM env vars; `endpoint` in alert_configs is the recipient email address
 - Webhook alert pattern: create alerts.py with send_webhook_alert(org_id, event); call from auto-persist with asyncio.ensure_future(); guard with `if is_phishing and org_id`
 - httpx.AsyncClient is available (in requirements.txt); use for async HTTP in alerts system
 - phishing-api/app.py uses Pydantic BaseModel + Field for all request/response models
@@ -101,4 +103,20 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - Guard webhook with `if is_phishing and org_id:` — anonymous requests (org_id=None) have no alert config to look up
   - `get_alert_configs()` returns [] (not raises) when DB_ENABLED=False — safe to call without DB guard
   - Lazy import pattern: `from alerts import send_webhook_alert` inside the auto-persist block (consistent with `from db import log_event` pattern)
+---
+
+## 2026-04-09 - US-007
+- Added `send_email_alert(org_id, event)` to phishing-api/alerts.py: fetches `email` type configs from DB, sends SMTP email to each recipient, fire-and-forget with graceful error handling
+- Added `_send_smtp(recipient, subject, body)` helper (synchronous, uses Python built-in smtplib + email.message)
+- Added `_build_email(payload)` helper that builds subject and plain-text body from the alert payload
+- Added SMTP config constants from env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+- Updated 3 auto-persist spots in app.py (/predict, /analyze-email, /predict-batch) to also call send_email_alert alongside send_webhook_alert
+- Created phishing-api/test_email_alert.py with 11 tests covering: sends to single recipient, no-op with no configs, graceful SMTP error, graceful config fetch failure, multiple recipients, subject/body content, /predict integration (trigger/no-trigger)
+- **Learnings for future iterations:**
+  - Email alert uses Python built-in smtplib — no new requirements.txt entries needed
+  - `_send_smtp` is synchronous — called from async context, runs in event loop (acceptable for low-frequency fire-and-forget alerts)
+  - `endpoint` field in alert_configs stores email address (recipient) for email alerts, webhook URL for webhook alerts — same column, different semantic
+  - Same guard as webhook: `if is_phishing and org_id:` — anonymous events never trigger alerts
+  - SMTP_USER/SMTP_PASSWORD: if both set, starttls() + login() is called; otherwise connects anonymously (e.g. localhost relay)
+  - Lazy import `from alerts import send_webhook_alert, send_email_alert` inside the auto-persist block — both in same import line now
 ---

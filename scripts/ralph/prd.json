@@ -43,7 +43,7 @@
       "id": "US-007",
       "title": "Sistema de alertas — email",
       "priority": 7,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-008",
