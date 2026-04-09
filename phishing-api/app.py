@@ -32,9 +32,47 @@ BERT_CONFIDENT_LOWER = 0.15  # P(phish) <= 0.15 → legitimo direto
 CASCADE_BERT_WEIGHT = 0.6
 
 # Thresholds para classificacao de email
-EMAIL_PHISHING_THRESHOLD = 0.6
+EMAIL_PHISHING_THRESHOLD = 0.7
 EMAIL_SUSPICIOUS_THRESHOLD = 0.4
 EMAIL_WEIGHT = 0.6
+# Cap for email-only score when no phishing URLs confirm the verdict.
+# The DistilBERT model is overconfident for many legitimate commercial emails,
+# so without URL evidence we limit the score to SUSPICIOUS at most.
+EMAIL_ONLY_CAP = 0.65
+
+# Threshold mais alto para URLs dentro de emails.
+# URLs em emails frequentemente sao tracking/redirect (ex: t1.em.linkedin.com/r/?id=...)
+# que parecem phishing para o modelo mas sao legitimas.
+EMAIL_URL_PHISHING_THRESHOLD = 0.90
+
+# Dominios raiz conhecidos de servicos de email/tracking legitimos.
+# URLs cujo dominio raiz pertence a esta lista sao consideradas legitimas
+# sem passar pelo modelo BERT (evita falsos positivos de tracking URLs).
+KNOWN_EMAIL_DOMAINS = {
+    "linkedin.com", "google.com", "gmail.com", "youtube.com",
+    "microsoft.com", "outlook.com", "live.com", "office.com",
+    "apple.com", "icloud.com",
+    "facebook.com", "instagram.com", "whatsapp.com", "meta.com",
+    "twitter.com", "x.com",
+    "amazon.com", "amazonaws.com",
+    "github.com", "gitlab.com", "bitbucket.org",
+    "slack.com", "notion.so", "figma.com", "canva.com",
+    "zoom.us", "teams.microsoft.com",
+    "netflix.com", "spotify.com", "discord.com",
+    "stripe.com", "paypal.com",
+    "mailchimp.com", "sendgrid.net", "mailgun.com",
+    "hubspot.com", "salesforce.com",
+    "claude.ai", "anthropic.com", "openai.com",
+    "gov.br", "edu.br", "org.br",
+}
+
+# Sufixos de segundo nivel (SLDs) brasileiros — tratados como TLD para extracao de dominio.
+# Ex: "auditar.med.br" tem raiz "auditar.med.br", nao "med.br".
+BR_SLDS = {"com", "org", "net", "edu", "gov", "mil", "art", "coop", "emp", "med",
+           "mus", "srv", "tur", "eco", "adm", "adv", "agr", "arq", "bio", "blog",
+           "bmd", "eng", "esp", "etc", "far", "flog", "fnd", "fot", "fst", "ggf",
+           "imb", "ind", "inf", "jor", "lel", "mat", "not", "ntr", "odo", "ppg",
+           "pro", "psc", "qsl", "rec", "slg", "tmp", "trd", "vet", "vlog", "wiki"}
 
 # IDs dos modelos de email e traducao
 EMAIL_MODEL_ID = "cybersectony/phishing-email-detection-distilbert_v2.4.1"
@@ -58,7 +96,10 @@ CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model()
+    from db import init_db, close_db
+    await init_db()
     yield
+    await close_db()
 
 
 app = FastAPI(
@@ -256,12 +297,44 @@ def detect_and_translate(text: str) -> tuple[str, str, bool]:
     return text, lang, False
 
 
+def _extract_root_domain(url: str) -> str:
+    """Extrai dominio raiz de uma URL (ex: 't1.em.linkedin.com' -> 'linkedin.com').
+
+    Trata SLDs brasileiros: 'fluxos.auditar.med.br' -> 'auditar.med.br'
+    """
+    try:
+        from urllib.parse import urlparse
+        hostname = urlparse(url).hostname or ""
+        parts = hostname.lower().split(".")
+        # Dominios brasileiros com SLD (ex: .com.br, .med.br): pega 3 partes como raiz
+        if len(parts) >= 4 and parts[-1] == "br" and parts[-2] in BR_SLDS:
+            return ".".join(parts[-3:])
+        # Dominios .br simples (ex: exemplo.br)
+        if len(parts) >= 3 and parts[-1] == "br":
+            return ".".join(parts[-2:])
+        if len(parts) >= 2:
+            return ".".join(parts[-2:])
+        return hostname
+    except Exception:
+        return ""
+
+
 def _analyze_email_urls(urls: List[str]) -> List[EmailUrlResult]:
-    """Analisa URLs encontradas no corpo do email usando apenas BERT (sem cascata CatBoost)."""
+    """Analisa URLs encontradas no corpo do email usando BERT + whitelist de dominios conhecidos."""
     results = []
     for url in urls[:10]:
+        root_domain = _extract_root_domain(url)
+
+        # Dominios conhecidos de servicos legitimos sao isentos do modelo
+        if root_domain in KNOWN_EMAIL_DOMAINS:
+            results.append(EmailUrlResult(
+                url=url, is_phishing=False, confidence=95.0, label="LEGITIMO",
+            ))
+            continue
+
         prob = _bert_predict(url)
-        is_phishing = prob > PHISHING_THRESHOLD
+        # Threshold mais alto para URLs em emails (tracking URLs geram falsos positivos)
+        is_phishing = prob > EMAIL_URL_PHISHING_THRESHOLD
         confidence = (prob if is_phishing else 1.0 - prob) * 100
         label = "PHISHING" if is_phishing else "LEGITIMO"
         results.append(EmailUrlResult(
@@ -309,8 +382,15 @@ async def analyze_email(request: EmailRequest):
 
     start_time = time.perf_counter()
 
-    # 1. Concatena subject + body
-    full_text = f"Subject: {request.subject}\n\n{request.body}" if request.subject else request.body
+    # 1. Formata texto com headers de email (o modelo espera From:/Subject:)
+    parts = []
+    if request.sender:
+        parts.append(f"From: {request.sender}")
+    if request.subject:
+        parts.append(f"Subject: {request.subject}")
+    parts.append("")  # blank line before body
+    parts.append(request.body)
+    full_text = "\n".join(parts)
 
     # 2. Detecta idioma e traduz se necessario
     translated_text, language_detected, was_translated = detect_and_translate(full_text)
@@ -343,12 +423,18 @@ async def analyze_email(request: EmailRequest):
     high_confidence_phishing = [r for r in phishing_urls if r.confidence > 80]
 
     if high_confidence_phishing:
+        # URLs with high confidence confirm phishing
         final_prob = max(email_prob, 0.9)
     elif phishing_urls:
+        # Some phishing URLs: weighted combination
         max_url_prob = max(r.confidence / 100 for r in phishing_urls)
         final_prob = EMAIL_WEIGHT * email_prob + (1 - EMAIL_WEIGHT) * max_url_prob
     else:
-        final_prob = email_prob
+        # No phishing URLs: cap the email-only score.
+        # The DistilBERT model is overconfident for legitimate commercial emails
+        # (e.g. Google, LinkedIn, Netflix notifications score >95% phishing).
+        # Without URL evidence, we limit the verdict to SUSPICIOUS at most.
+        final_prob = min(email_prob, EMAIL_ONLY_CAP)
 
     # 6. Labels
     if final_prob > EMAIL_PHISHING_THRESHOLD:
