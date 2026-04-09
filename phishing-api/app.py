@@ -1,10 +1,10 @@
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, MarianMTModel, MarianTokenizer
 from langdetect import detect as langdetect_detect
@@ -117,6 +117,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class OrgCreateRequest(BaseModel):
+    """Modelo de entrada para criacao de organizacao"""
+    org_id: str = Field(..., description="Identificador unico da organizacao (ex: acme-corp)")
+    name: Optional[str] = Field(default=None, description="Nome legivel da organizacao")
+
+
+class OrgCreateResponse(BaseModel):
+    """Modelo de resposta para criacao de organizacao"""
+    org_id: str = Field(..., description="Identificador da organizacao")
+    api_key: str = Field(..., description="API Key gerada para autenticacao")
+    name: Optional[str] = Field(default=None, description="Nome da organizacao")
 
 
 class ClientFeatures(BaseModel):
@@ -567,6 +580,31 @@ async def health_check():
         "device": device,
         "version": API_VERSION,
     }
+
+
+@app.post("/admin/orgs", response_model=OrgCreateResponse, status_code=201)
+async def create_organization(request: OrgCreateRequest):
+    """Cria uma nova organizacao e retorna sua API Key.
+
+    Este endpoint deve ser protegido por rede/firewall em producao.
+    Nao requer autenticacao para facilitar o bootstrap inicial.
+    """
+    from auth import create_org
+    from db import DB_ENABLED
+
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="Database nao disponivel")
+
+    try:
+        api_key = await create_org(org_id=request.org_id, name=request.name)
+    except Exception as exc:
+        # IntegrityError when org_id already exists
+        error_msg = str(exc)
+        if "unique" in error_msg.lower() or "duplicate" in error_msg.lower():
+            raise HTTPException(status_code=409, detail=f"org_id '{request.org_id}' ja existe")
+        raise HTTPException(status_code=500, detail=f"Erro ao criar organizacao: {error_msg}")
+
+    return OrgCreateResponse(org_id=request.org_id, api_key=api_key, name=request.name)
 
 
 def _build_analysis(is_phishing: bool, confidence: float) -> str:
