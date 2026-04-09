@@ -12,6 +12,8 @@
 - Auth is OPTIONAL on existing endpoints — anonymous requests (no X-API-Key) are allowed
 - log_event() in db.py uses `.returning(id, created_at)` — merge with values dict for full row; created_at is a Python datetime, call .isoformat() for JSON
 - Patch `db.log_event` in tests (not `app.log_event`) — endpoint uses `from db import log_event` inside handler
+- Auto-persist pattern: guard `if DB_ENABLED:`, call `await log_event(...)`, wrap in try/except — never fail the response
+- Batch auto-persist: use `asyncio.ensure_future(_persist_batch())` to avoid blocking response
 
 # Ralph Progress Log
 Started: Thu Apr  9 11:13:07 PDT 2026
@@ -55,4 +57,16 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - `get_org_id` can be used as `Depends(get_org_id)` in endpoint signatures without lazy import — it's already imported at top of app.py
   - Test pattern: patch `db.log_event` (not `app.log_event`) since the endpoint does `from db import log_event` inside the handler
   - `created_at` from asyncpg/SQLAlchemy RETURNING is a Python `datetime` object; call `.isoformat()` before returning in JSON response
+---
+
+## 2026-04-09 - US-004
+- Modified `/predict` endpoint: added `org_id: Optional[str] = Depends(get_org_id)` and fire-and-forget `log_event()` after analysis
+- Modified `/analyze-email` endpoint: same pattern — optional auth + auto-persist email event
+- Modified `/predict-batch` endpoint: optional auth + `asyncio.ensure_future()` to persist each item without blocking response
+- Created phishing-api/test_auto_persist.py with tests covering: log_event called when DB enabled, not called when DB disabled, endpoint still returns 200 if log_event raises exception
+- **Learnings for future iterations:**
+  - Auto-persist pattern: `from db import DB_ENABLED, log_event` inside endpoint handler, guard with `if DB_ENABLED:`, wrap in try/except to never fail the response
+  - For batch endpoints, use `asyncio.ensure_future(_persist_batch())` so persistence is truly non-blocking (runs after response is sent)
+  - Adding `Depends(get_org_id)` to existing endpoints is backwards-compatible — anonymous requests (no X-API-Key) continue to work with org_id=None
+  - To test auto-persist: set `db_module.DB_ENABLED = True`, patch `db.log_event`, call endpoint, assert `mock_log.assert_called_once()`
 ---
