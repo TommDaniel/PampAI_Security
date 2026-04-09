@@ -430,8 +430,13 @@ def _build_email_analysis(label: str, confidence: float, email_score: float,
 
 
 @app.post("/analyze-email", response_model=EmailResponse)
-async def analyze_email(request: EmailRequest):
-    """Endpoint de analise de email phishing usando DistilBERT + analise de URLs."""
+async def analyze_email(
+    request: EmailRequest,
+    org_id: Optional[str] = Depends(get_org_id),
+):
+    """Endpoint de analise de email phishing usando DistilBERT + analise de URLs.
+    Persiste automaticamente o resultado no banco se disponivel.
+    """
     if email_model is None:
         raise HTTPException(status_code=503, detail="Modelo de email nao carregado")
 
@@ -506,6 +511,27 @@ async def analyze_email(request: EmailRequest):
 
     analysis = _build_email_analysis(label, confidence, email_score, url_results,
                                      language_detected, was_translated)
+
+    # Auto-persist: fire-and-forget, never block or fail the response
+    from db import DB_ENABLED, log_event
+    if DB_ENABLED:
+        try:
+            await log_event(
+                org_id=org_id,
+                event_type="email",
+                is_phishing=is_phishing,
+                confidence=round(confidence, 2),
+                label=label,
+                email_subject=request.subject,
+                email_sender=request.sender,
+                analysis=analysis,
+                inference_ms=round(inference_ms, 2),
+                email_score=round(email_score, 2),
+                language_detected=language_detected,
+                translated=was_translated,
+            )
+        except Exception as db_exc:
+            logger.warning(f"Auto-persist falhou (analyze-email): {db_exc}")
 
     return EmailResponse(
         is_phishing=is_phishing,
@@ -801,10 +827,14 @@ async def predict_batch_phishing(
 
 
 @app.post("/predict-batch", response_model=List[PhishingResponse])
-async def predict_batch(requests: List[PhishingRequest]):
+async def predict_batch(
+    requests: List[PhishingRequest],
+    org_id: Optional[str] = Depends(get_org_id),
+):
     """
     Batch prediction endpoint.
     Accepts array of PhishingRequest and returns array of PhishingResponse in same order.
+    Persiste automaticamente cada resultado no banco se disponivel.
     """
     if model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Modelo nao carregado")
@@ -832,6 +862,28 @@ async def predict_batch(requests: List[PhishingRequest]):
             f"Inferencia total: {results[0][4]:.1f}ms"
         )
 
+        # Auto-persist: fire-and-forget for each item in batch
+        import asyncio
+        from db import DB_ENABLED, log_event
+        if DB_ENABLED:
+            async def _persist_batch():
+                for req, (is_phishing, confidence, label, analysis, inference_ms, source) in zip(requests, results):
+                    try:
+                        await log_event(
+                            org_id=org_id,
+                            event_type="url",
+                            is_phishing=is_phishing,
+                            confidence=round(confidence, 2),
+                            label=label,
+                            url=req.url,
+                            analysis=analysis,
+                            inference_ms=round(inference_ms, 2),
+                            source=source,
+                        )
+                    except Exception as db_exc:
+                        logger.warning(f"Auto-persist falhou (predict-batch) para {req.url}: {db_exc}")
+            asyncio.ensure_future(_persist_batch())
+
         return responses
 
     except Exception as e:
@@ -840,10 +892,14 @@ async def predict_batch(requests: List[PhishingRequest]):
 
 
 @app.post("/predict", response_model=PhishingResponse)
-async def predict(request: PhishingRequest):
+async def predict(
+    request: PhishingRequest,
+    org_id: Optional[str] = Depends(get_org_id),
+):
     """
     Endpoint principal para deteccao de phishing.
     Recebe URL + client_features e retorna predicao do DomURLs-BERT.
+    Persiste automaticamente o resultado no banco se disponivel.
     """
     if model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Modelo nao carregado")
@@ -867,6 +923,24 @@ async def predict(request: PhishingRequest):
             f"Predicao: {label} ({confidence:.1f}%) | URL: {request.url} | "
             f"Inferencia: {inference_ms:.1f}ms | Source: {source}"
         )
+
+        # Auto-persist: fire-and-forget, never block or fail the response
+        from db import DB_ENABLED, log_event
+        if DB_ENABLED:
+            try:
+                await log_event(
+                    org_id=org_id,
+                    event_type="url",
+                    is_phishing=is_phishing,
+                    confidence=round(confidence, 2),
+                    label=label,
+                    url=request.url,
+                    analysis=analysis,
+                    inference_ms=round(inference_ms, 2),
+                    source=source,
+                )
+            except Exception as db_exc:
+                logger.warning(f"Auto-persist falhou (predict): {db_exc}")
 
         return response
 
