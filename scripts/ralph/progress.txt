@@ -7,6 +7,9 @@
 - Migrations SQL in phishing-api/migrations/ — SQLAlchemy also creates tables via metadata.create_all
 - Python syntax check: `python3 -c "import ast; ast.parse(open('file').read())"`
 - No pip available in devcontainer — cannot install Python packages for runtime testing
+- Auth dependency `get_org_id` in auth.py: returns None (anonymous) or org_id string; raises 401 for bad key, 503 if DB down
+- Admin org creation: POST /admin/orgs (no auth required for bootstrap); returns api_key
+- Auth is OPTIONAL on existing endpoints — anonymous requests (no X-API-Key) are allowed
 
 # Ralph Progress Log
 Started: Thu Apr  9 11:13:07 PDT 2026
@@ -22,4 +25,19 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - org_id in phishing_events is nullable (anonymous requests allowed); FK ON DELETE SET NULL
   - alert_configs FK ON DELETE CASCADE (org deletion removes configs)
   - Three indexes on phishing_events: org_id, created_at DESC, is_phishing
+---
+
+## 2026-04-09 - US-002
+- Created phishing-api/auth.py with get_org_id() FastAPI dependency (X-API-Key header → org_id)
+- Added generate_api_key() using secrets.token_hex(32) → 64-char hex
+- Added create_org() helper to insert org into organizations table and return the new API key
+- Added OrgCreateRequest/OrgCreateResponse Pydantic models to app.py
+- Added POST /admin/orgs endpoint to bootstrap organization creation (no auth required)
+- Added phishing-api/test_auth.py with unit tests for generate_api_key, get_org_id dependency, and admin endpoint
+- **Learnings for future iterations:**
+  - Import DB_ENABLED from db.py inside functions (not top-level) so the flag reflects runtime state
+  - get_org_id uses `Security(_api_key_header)` where _api_key_header = APIKeyHeader(auto_error=False) — auto_error=False means missing key returns None instead of 401
+  - Auth is optional (anonymous requests return None org_id) — consistent with nullable org_id in phishing_events
+  - create_org raises Exception on duplicate org_id (unique constraint) — catch and convert to 409 in endpoint
+  - Tests use AsyncMock for session context manager pattern: mock_cm.__aenter__ = AsyncMock(return_value=mock_session)
 ---

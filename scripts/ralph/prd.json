@@ -13,7 +13,7 @@
       "id": "US-002",
       "title": "Autenticacao por API Key",
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-003",
