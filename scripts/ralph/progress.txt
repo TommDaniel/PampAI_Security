@@ -135,4 +135,22 @@ Started: Thu Apr  9 11:13:07 PDT 2026
   - SQLAlchemy `.update().returning(...)` only works in PostgreSQL — same pattern as `.insert().returning(...)`
   - `_ts()` helper centralizes datetime→ISO conversion; reuse for any new endpoint returning timestamps
   - list_alert_configs raises RuntimeError (not empty list) when DB disabled — consistent with other write ops; test must set DB_ENABLED=False before calling
+- Dashboard endpoints pattern: `GET /dashboard/{org_id}/events` (paginated, optional filters: event_type, is_phishing) and `GET /dashboard/{org_id}/timeline` (daily counts, optional days param, max 365); both require auth (401/403); use same auth guard pattern as reports
+- SQLAlchemy Date cast for grouping: `cast(col, Date)` (import `Date, cast` from sqlalchemy); use Python datetime cutoff for range filter instead of PostgreSQL INTERVAL text
+---
+
+## 2026-04-09 - US-009
+- Added `list_events(org_id, page, limit, event_type, is_phishing)` to phishing-api/db.py: paginated query with optional filters, returns {"items": [...], "total": int, "page": int, "limit": int}
+- Added `get_timeline(org_id, days)` to phishing-api/db.py: daily event counts using `cast(created_at, Date)` grouping and Python datetime cutoff for range filter
+- Added `Date` and `cast` to SQLAlchemy imports in db.py
+- Added 4 Pydantic models to app.py: `DashboardEventItem`, `DashboardEventsResponse`, `TimelinePoint`, `DashboardTimelineResponse`
+- Added `GET /dashboard/{org_id}/events` endpoint: auth required (401/403), DB guard (503), limit clamped to 1-100, optional query params: page, limit, event_type, is_phishing
+- Added `GET /dashboard/{org_id}/timeline` endpoint: auth required (401/403), DB guard (503), days clamped to 1-365, default 30
+- Created phishing-api/test_dashboard.py with 16 tests covering: 503/401/403 guards for both endpoints, schema validation, field content, pagination param forwarding, filter forwarding, empty results, ISO timestamp
+- **Learnings for future iterations:**
+  - SQLAlchemy Date cast: `cast(col, Date)` works for grouping by day; import `Date, cast` from sqlalchemy
+  - Use Python `datetime.now(timezone.utc) - timedelta(days=N)` for cutoff — avoids PostgreSQL-specific INTERVAL text syntax
+  - Dashboard endpoints follow exact same auth/DB guard pattern as reports and alert config endpoints
+  - `_ts()` helper centralizes datetime→ISO; use for all new endpoints returning timestamps
+  - Limit clamping (1-100 for pagination, 1-365 for days) is done in the endpoint, not db layer
 ---

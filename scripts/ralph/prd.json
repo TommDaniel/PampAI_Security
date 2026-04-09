@@ -55,7 +55,7 @@
       "id": "US-009",
       "title": "Dashboard — Backend (API de dados)",
       "priority": 9,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-010",
