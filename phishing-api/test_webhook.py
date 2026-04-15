@@ -71,6 +71,7 @@ NOW = datetime(2026, 4, 9, 12, 0, 0, tzinfo=timezone.utc)
 PHISHING_EVENT = {
     "id": 42,
     "org_id": "acme-corp",
+    "user_email": None,
     "event_type": "url",
     "is_phishing": True,
     "confidence": 95.0,

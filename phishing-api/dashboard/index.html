@@ -428,6 +428,7 @@
             <option value="true">Phishing</option>
             <option value="false">Legitimo</option>
           </select>
+          <input id="filter-user" type="email" placeholder="Email do usuario" style="min-width:180px" />
           <select id="filter-limit">
             <option value="20">20 por pagina</option>
             <option value="50">50 por pagina</option>
@@ -481,7 +482,7 @@
 
   function fmtConfidence(v) {
     if (v == null) return '—';
-    return (v * 100).toFixed(1) + '%';
+    return v.toFixed(1) + '%';
   }
 
   function escHtml(s) {
@@ -708,6 +709,19 @@
   document.getElementById('filter-type').addEventListener('change', () => { currentPage = 1; loadEvents(); });
   document.getElementById('filter-verdict').addEventListener('change', () => { currentPage = 1; loadEvents(); });
   document.getElementById('filter-limit').addEventListener('change', () => { currentPage = 1; loadEvents(); });
+  // Filtro por usuario: aplicar ao pressionar Enter ou perder o foco
+  {
+    const userInput = document.getElementById('filter-user');
+    let userTimer;
+    const apply = () => { currentPage = 1; loadEvents(); };
+    userInput.addEventListener('input', () => {
+      clearTimeout(userTimer);
+      userTimer = setTimeout(apply, 400);
+    });
+    userInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { clearTimeout(userTimer); apply(); }
+    });
+  }
 
   async function loadEvents() {
     const container = document.getElementById('events-container');
@@ -717,11 +731,13 @@
 
     const type = document.getElementById('filter-type').value;
     const verdict = document.getElementById('filter-verdict').value;
+    const user = document.getElementById('filter-user').value.trim();
     const limit = parseInt(document.getElementById('filter-limit').value, 10);
 
     let qs = `?page=${currentPage}&limit=${limit}`;
     if (type) qs += `&event_type=${encodeURIComponent(type)}`;
     if (verdict !== '') qs += `&is_phishing=${verdict}`;
+    if (user) qs += `&user_email=${encodeURIComponent(user)}`;
 
     try {
       const data = await apiFetch(`/dashboard/${encodeURIComponent(orgId)}/events${qs}`);
@@ -749,12 +765,30 @@
         : `<span class="badge badge-success">Legitimo</span>`;
       const subject = ev.email_subject ? escHtml(ev.email_subject) : '';
       const sender = ev.email_sender ? escHtml(ev.email_sender) : '';
-      const detail = subject
-        ? `<span title="${subject}">${subject.length > 40 ? subject.slice(0,40)+'…' : subject}</span>`
-        : (ev.url ? `<span class="url-cell" title="${escHtml(ev.url)}">${escHtml(ev.url)}</span>` : '—');
+      let detail;
+      if (ev.event_type === 'email') {
+        if (sender && subject) {
+          const short = subject.length > 40 ? subject.slice(0,40)+'…' : subject;
+          detail = `<span title="${subject}"><strong>${sender}</strong><br><span style="color:var(--muted);font-size:11px">${short}</span></span>`;
+        } else if (sender) {
+          detail = `<span><strong>${sender}</strong></span>`;
+        } else if (subject) {
+          detail = `<span title="${subject}">${subject.length > 40 ? subject.slice(0,40)+'…' : subject}</span>`;
+        } else {
+          detail = '—';
+        }
+      } else {
+        detail = ev.url
+          ? `<span class="url-cell" title="${escHtml(ev.url)}">${escHtml(ev.url)}</span>`
+          : '—';
+      }
 
       const source = ev.source ? `<span style="color:var(--muted);font-size:11px">${escHtml(ev.source)}</span>` : '—';
       const conf = ev.confidence != null ? fmtConfidence(ev.confidence) : '—';
+
+      const userCell = ev.user_email
+        ? `<span style="color:var(--muted);font-size:12px">${escHtml(ev.user_email)}</span>`
+        : '—';
 
       return `
         <tr>
@@ -762,6 +796,7 @@
           <td>${typeBadge}</td>
           <td>${verdictBadge}</td>
           <td>${detail}</td>
+          <td>${userCell}</td>
           <td>${conf}</td>
           <td>${source}</td>
           <td style="color:var(--muted);font-size:12px;white-space:nowrap">${fmtDate(ev.created_at)}</td>
@@ -777,6 +812,7 @@
             <th>Tipo</th>
             <th>Veredicto</th>
             <th>Alvo</th>
+            <th>Usuario</th>
             <th>Confianca</th>
             <th>Origem</th>
             <th>Data</th>

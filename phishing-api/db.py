@@ -75,6 +75,7 @@ phishing_events = Table(
     metadata,
     Column("id", BigInteger, primary_key=True, autoincrement=True),
     Column("org_id", String(64), nullable=True),       # NULL for anonymous requests
+    Column("user_email", String(320), nullable=True),  # header X-User-Email (per-user attribution)
     Column("event_type", String(16), nullable=False),  # 'url' | 'email'
     # URL-specific
     Column("url", Text, nullable=True),
@@ -87,7 +88,7 @@ phishing_events = Table(
     Column("label", String(16), nullable=False),       # PHISHING | LEGITIMO | SUSPICIOUS
     Column("analysis", Text, nullable=True),
     Column("inference_ms", Float, nullable=True),
-    Column("source", String(16), nullable=True),       # bert | cascade | catboost
+    Column("source", String(16), nullable=True),       # bert | cascade | catboost | email_bert
     # Email score & translation metadata
     Column("email_score", Float, nullable=True),
     Column("language_detected", String(16), nullable=True),
@@ -134,11 +135,40 @@ DB_ENABLED = False  # Set to True after successful init_db()
 
 
 async def init_db() -> None:
-    """Create all tables if they do not exist yet."""
+    """Create all tables if they do not exist yet, then apply incremental migrations.
+
+    `create_all` is idempotent but does NOT add columns to pre-existing tables.
+    We therefore run `migrations/00N_*.sql` files (other than 001_init.sql) afterwards
+    using `IF NOT EXISTS` clauses — safe to re-run on every boot.
+    """
     global DB_ENABLED
     try:
+        from sqlalchemy import text
+
         async with engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
+
+            # Apply incremental migrations (idempotent).
+            # Strip line comments first so a `;` inside a comment does not break splitting.
+            migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
+            if os.path.isdir(migrations_dir):
+                for fname in sorted(os.listdir(migrations_dir)):
+                    if not fname.endswith(".sql") or fname == "001_init.sql":
+                        continue
+                    with open(os.path.join(migrations_dir, fname), "r", encoding="utf-8") as f:
+                        raw = f.read()
+                    cleaned_lines = []
+                    for line in raw.splitlines():
+                        idx = line.find("--")
+                        cleaned_lines.append(line[:idx] if idx >= 0 else line)
+                    cleaned = "\n".join(cleaned_lines)
+                    for stmt in cleaned.split(";"):
+                        stripped = stmt.strip()
+                        if not stripped:
+                            continue
+                        await conn.execute(text(stripped))
+                    logger.info(f"Migration aplicada: {fname}")
+
         DB_ENABLED = True
         logger.info("PostgreSQL conectado e schema criado/verificado.")
     except Exception as exc:
@@ -161,6 +191,7 @@ async def log_event(
     is_phishing: bool,
     confidence: float,
     label: str,
+    user_email: Optional[str] = None,
     url: Optional[str] = None,
     email_subject: Optional[str] = None,
     email_sender: Optional[str] = None,
@@ -184,6 +215,7 @@ async def log_event(
 
     values = dict(
         org_id=org_id,
+        user_email=user_email,
         event_type=event_type,
         is_phishing=is_phishing,
         confidence=confidence,
@@ -423,6 +455,7 @@ async def list_events(
     limit: int = 20,
     event_type: Optional[str] = None,
     is_phishing: Optional[bool] = None,
+    user_email: Optional[str] = None,
 ) -> dict:
     """Return a paginated list of phishing events for an org, most recent first.
 
@@ -437,6 +470,8 @@ async def list_events(
         conditions.append(phishing_events.c.event_type == event_type)
     if is_phishing is not None:
         conditions.append(phishing_events.c.is_phishing == is_phishing)  # noqa: E712
+    if user_email is not None:
+        conditions.append(phishing_events.c.user_email == user_email.lower())
 
     offset = (page - 1) * limit
 
@@ -452,6 +487,7 @@ async def list_events(
             select(
                 phishing_events.c.id,
                 phishing_events.c.org_id,
+                phishing_events.c.user_email,
                 phishing_events.c.event_type,
                 phishing_events.c.url,
                 phishing_events.c.email_subject,
@@ -474,6 +510,7 @@ async def list_events(
         {
             "id": row.id,
             "org_id": row.org_id,
+            "user_email": row.user_email,
             "event_type": row.event_type,
             "url": row.url,
             "email_subject": row.email_subject,

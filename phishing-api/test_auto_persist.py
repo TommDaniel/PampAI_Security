@@ -63,10 +63,11 @@ with patch("app.load_model", _mock_load_model), \
 NOW = datetime(2026, 4, 9, 12, 0, 0, tzinfo=timezone.utc)
 
 
-def _make_log_event_return(event_type="url", org_id=None):
+def _make_log_event_return(event_type="url", org_id=None, user_email=None):
     return {
         "id": 1,
         "org_id": org_id,
+        "user_email": user_email,
         "event_type": event_type,
         "is_phishing": False,
         "confidence": 10.0,
@@ -159,6 +160,58 @@ class TestPredictAutoPersist:
         finally:
             db_module.DB_ENABLED = original
 
+    def test_predict_passes_user_email_to_log_event(self):
+        """Header X-User-Email deve ser propagado para log_event via get_user_email."""
+        import db as db_module
+        original = db_module.DB_ENABLED
+        db_module.DB_ENABLED = True
+        try:
+            mock_row = _make_log_event_return(user_email="alice@acme.com")
+            with patch("db.log_event", AsyncMock(return_value=mock_row)) as mock_log:
+                response = client.post(
+                    "/predict",
+                    json=PREDICT_PAYLOAD,
+                    headers={"X-User-Email": "Alice@Acme.COM"},
+                )
+                assert response.status_code == 200
+                mock_log.assert_called_once()
+                # Normalizado para lowercase por get_user_email
+                assert mock_log.call_args.kwargs["user_email"] == "alice@acme.com"
+        finally:
+            db_module.DB_ENABLED = original
+
+    def test_predict_user_email_absent_logs_none(self):
+        """Sem header X-User-Email, log_event recebe user_email=None."""
+        import db as db_module
+        original = db_module.DB_ENABLED
+        db_module.DB_ENABLED = True
+        try:
+            mock_row = _make_log_event_return()
+            with patch("db.log_event", AsyncMock(return_value=mock_row)) as mock_log:
+                response = client.post("/predict", json=PREDICT_PAYLOAD)
+                assert response.status_code == 200
+                assert mock_log.call_args.kwargs["user_email"] is None
+        finally:
+            db_module.DB_ENABLED = original
+
+    def test_predict_invalid_user_email_sanitized_to_none(self):
+        """Email sem @ retorna None (get_user_email descarta silenciosamente)."""
+        import db as db_module
+        original = db_module.DB_ENABLED
+        db_module.DB_ENABLED = True
+        try:
+            mock_row = _make_log_event_return()
+            with patch("db.log_event", AsyncMock(return_value=mock_row)) as mock_log:
+                response = client.post(
+                    "/predict",
+                    json=PREDICT_PAYLOAD,
+                    headers={"X-User-Email": "not-an-email"},
+                )
+                assert response.status_code == 200
+                assert mock_log.call_args.kwargs["user_email"] is None
+        finally:
+            db_module.DB_ENABLED = original
+
     def test_predict_passes_org_id_to_log_event(self):
         import db as db_module
         original = db_module.DB_ENABLED
@@ -196,6 +249,7 @@ class TestAnalyzeEmailAutoPersist:
                 assert call_kwargs["event_type"] == "email"
                 assert call_kwargs["email_subject"] == "Test email"
                 assert call_kwargs["email_sender"] == "test@example.com"
+                assert call_kwargs["source"] == "email_bert"
         finally:
             db_module.DB_ENABLED = original
 

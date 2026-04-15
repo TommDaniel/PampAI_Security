@@ -1,13 +1,13 @@
 {
-  "total_domains": 32406,
+  "total_domains": 32497,
   "sources": {
-    "majestic": 17829,
-    "tranco": 14150,
+    "majestic": 17832,
+    "tranco": 14238,
     "curated_br": 273,
     "curated_global": 154
   },
   "categories": {
-    "global_popular": 31979,
+    "global_popular": 32070,
     "bancos": 62,
     "governo": 57,
     "universidades": 42,
@@ -25,6 +25,6 @@
     "ecommerce_global": 10,
     "reference": 8
   },
-  "blacklist_conflicts_removed": 212,
+  "blacklist_conflicts_removed": 175,
   "top_n_used": 10000
 }

@@ -1,7 +1,8 @@
 /**
- * Popup da extensão — abre ao clicar no ícone na barra do navegador
- * Mostra resultado da análise via API DomURLs-BERT, status da API,
- * e controles para cache e configuração de URL da API.
+ * Popup da extensao — abre ao clicar no icone na barra do navegador
+ * Mostra resultado da analise de URL via API DomURLs-BERT,
+ * cards de emails analisados, status da API,
+ * e controles para cache e configuracao.
  */
 
 import { useEffect, useState } from "react"
@@ -15,6 +16,11 @@ import "./popup.css"
 
 interface TabResult extends AnalysisResult {
   url: string
+}
+
+interface EmailResult extends AnalysisResult {
+  url: string
+  timestamp: number
 }
 
 interface HealthInfo {
@@ -39,6 +45,14 @@ async function fetchResult(tabId: number): Promise<TabResult | null> {
     tabId,
   })
   return resp?.result ?? null
+}
+
+async function fetchEmailHistory(tabId: number): Promise<EmailResult[]> {
+  const resp = await sendMsg<{ emails: EmailResult[] }>({
+    type: "GET_EMAIL_HISTORY",
+    tabId,
+  })
+  return resp?.emails ?? []
 }
 
 async function fetchApiStatus(): Promise<HealthInfo> {
@@ -108,30 +122,9 @@ function formatInferenceMs(ms?: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-function emailCardClass(label: string): string {
-  if (label === "PHISHING") return "result-phishing"
-  if (label === "SUSPICIOUS") return "result-suspicious"
-  return "result-legit"
-}
-
-function emailLabelIcon(label: string): string {
-  if (label === "PHISHING") return "⚠ PHISHING"
-  if (label === "SUSPICIOUS") return "⚡ SUSPICIOUS"
-  return "✓ LEGÍTIMO"
-}
-
-function EmailUrlItem({ urlResult }: { urlResult: EmailUrlResultData }) {
-  const cls = urlResult.isPhishing ? "email-url-phishing" : "email-url-legit"
-  const truncUrl =
-    urlResult.url.length > 45
-      ? urlResult.url.slice(0, 45) + "…"
-      : urlResult.url
-  return (
-    <div className={"email-url-item " + cls} title={urlResult.url}>
-      <span className="email-url-text">{truncUrl}</span>
-      <span className="email-url-conf">{Math.round(urlResult.confidence)}%</span>
-    </div>
-  )
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts)
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
 }
 
 function ApiStatusDot({ online }: { online: boolean }) {
@@ -143,12 +136,177 @@ function ApiStatusDot({ online }: { online: boolean }) {
   )
 }
 
+function EmailUrlItem({ urlResult }: { urlResult: EmailUrlResultData }) {
+  const cls = urlResult.isPhishing ? "email-url-phishing" : "email-url-legit"
+  const truncUrl =
+    urlResult.url.length > 45
+      ? urlResult.url.slice(0, 45) + "..."
+      : urlResult.url
+  return (
+    <div className={"email-url-item " + cls} title={urlResult.url}>
+      <span className="email-url-text">{truncUrl}</span>
+      <span className="email-url-conf">{Math.round(urlResult.confidence)}%</span>
+    </div>
+  )
+}
+
+// ============================================================
+// Email Card Component
+// ============================================================
+
+function EmailCard({ email, expanded, onToggle }: {
+  email: EmailResult
+  expanded: boolean
+  onToggle: () => void
+}) {
+  const sender = email.url.startsWith("email:") ? email.url.slice(6) : email.url
+  const isPhishing = email.label === "PHISHING"
+  const isSuspicious = email.label === "SUSPICIOUS"
+  const isOffline = email.offline === true
+
+  const cardClass = isOffline
+    ? "email-card email-card-offline"
+    : isPhishing
+      ? "email-card email-card-phishing"
+      : isSuspicious
+        ? "email-card email-card-suspicious"
+        : "email-card email-card-legit"
+
+  const labelText = isOffline
+    ? "OFFLINE"
+    : isPhishing
+      ? "PHISHING"
+      : isSuspicious
+        ? "SUSPEITO"
+        : "SEGURO"
+
+  const labelClass = isOffline
+    ? "email-card-badge badge-offline"
+    : isPhishing
+      ? "email-card-badge badge-phishing"
+      : isSuspicious
+        ? "email-card-badge badge-suspicious"
+        : "email-card-badge badge-legit"
+
+  return (
+    <div className={cardClass} onClick={onToggle}>
+      <div className="email-card-header">
+        <div className="email-card-info">
+          <span className="email-card-sender" title={sender}>
+            {sender.length > 35 ? sender.slice(0, 35) + "..." : sender}
+          </span>
+          <span className="email-card-time">{formatTimestamp(email.timestamp)}</span>
+        </div>
+        <span className={labelClass}>{labelText}</span>
+      </div>
+
+      {!isOffline && (
+        <div className="email-card-bar">
+          <ConfidenceBar confidence={email.confidence} />
+        </div>
+      )}
+
+      {expanded && !isOffline && (
+        <div className="email-card-details">
+          {email.analysis && (
+            <p className="email-card-analysis">{email.analysis}</p>
+          )}
+
+          {email.languageDetected && (
+            <div className="email-card-meta">
+              <span className="email-lang-badge">Idioma: {email.languageDetected}</span>
+              {email.translated && (
+                <span className="email-lang-badge email-lang-translated">Traduzido</span>
+              )}
+            </div>
+          )}
+
+          {email.urlResults && email.urlResults.length > 0 && (
+            <div className="email-card-urls">
+              <div className="email-card-urls-title">URLs encontradas:</div>
+              {email.urlResults.map((ur, i) => (
+                <EmailUrlItem key={i} urlResult={ur} />
+              ))}
+            </div>
+          )}
+
+          <div className="email-card-footer">
+            <span>Tempo: {formatInferenceMs(email.inferenceMs)}</span>
+            <span>Fonte: {sourceLabel(email.source)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// URL Result Card (for non-email pages)
+// ============================================================
+
+function UrlResultCard({ result }: { result: TabResult }) {
+  const isPhishing = result.isPhishing
+  const isOffline = result.offline === true
+
+  if (isOffline) {
+    return (
+      <div className="result-card result-offline">
+        <div className="result-label">API Offline</div>
+        <div className="result-url" title={result.url}>
+          {result.url.length > 55 ? result.url.slice(0, 55) + "..." : result.url}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={"result-card " + (isPhishing ? "result-phishing" : "result-legit")}>
+      <div className="result-label">
+        {isPhishing ? "PHISHING" : "SEGURO"}
+      </div>
+      <div className="result-url" title={result.url}>
+        {result.url.length > 55 ? result.url.slice(0, 55) + "..." : result.url}
+      </div>
+
+      <div className="section" style={{ margin: "8px 0 0" }}>
+        <ConfidenceBar confidence={result.confidence} />
+      </div>
+
+      {result.analysis && (
+        <p className="analysis-text" style={{ marginTop: 8 }}>{result.analysis}</p>
+      )}
+
+      <div className="metrics-row" style={{ margin: "8px 0 0" }}>
+        <div className="metric">
+          <span className="metric-label">Resultado</span>
+          <span className="metric-value">{result.label}</span>
+        </div>
+        <div className="metric">
+          <span className="metric-label">Fonte</span>
+          <span className="metric-value">{sourceLabel(result.source)}</span>
+        </div>
+        <div className="metric">
+          <span className="metric-label">Motor</span>
+          <span className="metric-value">{modelSourceLabel(result.modelSource)}</span>
+        </div>
+        {result.inferenceMs !== undefined && (
+          <div className="metric">
+            <span className="metric-label">Tempo</span>
+            <span className="metric-value">{formatInferenceMs(result.inferenceMs)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ============================================================
 // Popup principal
 // ============================================================
 
 export default function Popup() {
   const [result, setResult] = useState<TabResult | null>(null)
+  const [emails, setEmails] = useState<EmailResult[]>([])
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -156,6 +314,8 @@ export default function Popup() {
   const [apiUrl, setApiUrl] = useState("http://localhost:8000")
   const [apiUrlSaved, setApiUrlSaved] = useState(false)
   const [cacheCleared, setCacheCleared] = useState(false)
+  const [expandedEmail, setExpandedEmail] = useState<number | null>(null)
+  const [isWebmail, setIsWebmail] = useState(false)
 
   useEffect(() => {
     init()
@@ -166,25 +326,42 @@ export default function Popup() {
       setLoading(true)
       setError("")
 
-      // Load saved API URL
       const stored = await chrome.storage.sync.get("apiUrl")
       if (stored.apiUrl) setApiUrl(stored.apiUrl)
 
-      // Get current tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       if (!tab?.id) {
         setLoading(false)
         return
       }
 
-      // Fetch result and API status in parallel
-      const [tabResult, apiHealth] = await Promise.all([
+      // Check if on webmail
+      const url = tab.url ?? ""
+      const webmail = url.includes("mail.google.com") ||
+        url.includes("outlook.live.com") ||
+        url.includes("outlook.office365.com") ||
+        url.includes("outlook.office.com")
+      setIsWebmail(webmail)
+
+      // Fetch all data in parallel
+      const [tabResult, emailHistory, apiHealth] = await Promise.all([
         fetchResult(tab.id),
+        fetchEmailHistory(tab.id),
         fetchApiStatus(),
       ])
 
-      setResult(tabResult)
+      // For webmail: don't show the URL result if it's an email result
+      if (tabResult && !tabResult.url.startsWith("email:")) {
+        setResult(tabResult)
+      }
+      setEmails(emailHistory)
       setHealth(apiHealth)
+
+      // Auto-expand the first email if on webmail
+      if (webmail && emailHistory.length > 0) {
+        setExpandedEmail(0)
+      }
+
       setLoading(false)
     } catch (err) {
       setError(String(err))
@@ -205,7 +382,6 @@ export default function Popup() {
     if (ok) {
       setApiUrlSaved(true)
       setTimeout(() => setApiUrlSaved(false), 2000)
-      // Re-check API status with new URL
       const apiHealth = await fetchApiStatus()
       setHealth(apiHealth)
     }
@@ -218,7 +394,7 @@ export default function Popup() {
         <Header health={health} />
         <div className="center-content">
           <div className="spinner" />
-          <p className="status-text">Carregando resultado...</p>
+          <p className="status-text">Carregando...</p>
         </div>
       </div>
     )
@@ -230,142 +406,67 @@ export default function Popup() {
       <div className="popup">
         <Header health={health} />
         <div className="center-content">
-          <p className="error-icon">⚠️</p>
-          <p className="status-text">Erro</p>
-          <p className="error-text">{error}</p>
+          <p className="status-text">Erro: {error}</p>
           <button className="btn-retry" onClick={init}>Tentar novamente</button>
         </div>
       </div>
     )
   }
 
-  // ---- Render: no result yet ----
-  if (!result) {
-    return (
-      <div className="popup">
-        <Header health={health} />
-        <div className="center-content">
-          <p className="status-text">Nenhuma análise para esta aba.</p>
-          <p className="status-text-sub">Navegue para uma página para analisar.</p>
-        </div>
-        <SettingsPanel
-          show={showSettings}
-          onToggle={() => setShowSettings((s) => !s)}
-          apiUrl={apiUrl}
-          onApiUrlChange={setApiUrl}
-          onSaveApiUrl={handleSaveApiUrl}
-          apiUrlSaved={apiUrlSaved}
-          onClearCache={handleClearCache}
-          cacheCleared={cacheCleared}
-        />
-      </div>
-    )
-  }
-
-  // ---- Render: result ----
-  const isPhishing = result.isPhishing
-  const isOffline = result.offline === true
-  const isEmail = result.url.startsWith("email:")
-  const emailSender = isEmail ? result.url.slice(6) : ""
+  const hasEmails = emails.length > 0
+  const hasUrlResult = result !== null && !result.url.startsWith("email:")
+  const hasNothing = !hasEmails && !hasUrlResult
 
   return (
     <div className="popup">
       <Header health={health} />
 
-      {/* Card de resultado */}
-      {isOffline ? (
-        <div className="result-card result-offline">
-          <div className="result-label">API Offline</div>
-          <div className="result-url" title={result.url}>
-            {result.url.length > 55 ? result.url.slice(0, 55) + "…" : result.url}
-          </div>
-        </div>
-      ) : isEmail ? (
-        <div className={"result-card " + emailCardClass(result.label)}>
-          <div className="result-label">
-            {emailLabelIcon(result.label)} {isEmail ? "Análise de Email" : ""}
-          </div>
-          <div className="result-url" title={emailSender}>
-            {emailSender.length > 55 ? emailSender.slice(0, 55) + "…" : emailSender}
-          </div>
-        </div>
-      ) : (
-        <div className={"result-card " + (isPhishing ? "result-phishing" : "result-legit")}>
-          <div className="result-label">
-            {isPhishing ? "⚠ PHISHING" : "✓ LEGÍTIMO"}
-          </div>
-          <div className="result-url" title={result.url}>
-            {result.url.length > 55 ? result.url.slice(0, 55) + "…" : result.url}
-          </div>
+      {/* URL analysis (non-webmail pages) */}
+      {hasUrlResult && !isWebmail && (
+        <div style={{ padding: "0 16px" }}>
+          <UrlResultCard result={result!} />
         </div>
       )}
 
-      {/* Confiança */}
-      {!isOffline && (
-        <div className="section">
-          <div className="section-title">Confiança</div>
-          <ConfidenceBar confidence={result.confidence} />
-        </div>
-      )}
-
-      {/* Análise */}
-      {!isOffline && result.analysis && (
-        <div className="section">
-          <div className="section-title">Análise</div>
-          <p className="analysis-text">{result.analysis}</p>
-        </div>
-      )}
-
-      {/* Email: idioma e tradução */}
-      {isEmail && !isOffline && result.languageDetected && (
-        <div className="section">
-          <div className="section-title">Idioma</div>
-          <div className="email-lang-row">
-            <span className="email-lang-badge">Idioma: {result.languageDetected}</span>
-            {result.translated && (
-              <span className="email-lang-badge email-lang-translated">Traduzido para EN</span>
+      {/* Email analysis section */}
+      {isWebmail && (
+        <div className="email-section">
+          <div className="email-section-header">
+            <span className="email-section-title">Emails analisados</span>
+            {hasEmails && (
+              <span className="email-section-count">{emails.length}</span>
             )}
           </div>
+
+          {hasEmails ? (
+            <div className="email-cards-list">
+              {emails.map((email, i) => (
+                <EmailCard
+                  key={email.url + email.timestamp}
+                  email={email}
+                  expanded={expandedEmail === i}
+                  onToggle={() => setExpandedEmail(expandedEmail === i ? null : i)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="email-empty">
+              <p className="status-text">Nenhum email analisado ainda.</p>
+              <p className="status-text-sub">Abra um email para analisar.</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Email: URLs no email */}
-      {isEmail && !isOffline && result.urlResults && result.urlResults.length > 0 && (
-        <div className="section">
-          <div className="section-title">URLs no email</div>
-          <div className="email-urls-list">
-            {result.urlResults.map((ur, i) => (
-              <EmailUrlItem key={i} urlResult={ur} />
-            ))}
-          </div>
+      {/* Empty state for non-webmail */}
+      {hasNothing && !isWebmail && (
+        <div className="center-content">
+          <p className="status-text">Nenhuma analise para esta aba.</p>
+          <p className="status-text-sub">Navegue para uma pagina para analisar.</p>
         </div>
       )}
 
-      {/* Métricas */}
-      <div className="metrics-row">
-        <div className="metric">
-          <span className="metric-label">Resultado</span>
-          <span className="metric-value">{result.label}</span>
-        </div>
-        <div className="metric">
-          <span className="metric-label">Fonte</span>
-          <span className="metric-value">{sourceLabel(result.source)}</span>
-        </div>
-        {!isEmail && (
-          <div className="metric">
-            <span className="metric-label">Motor</span>
-            <span className="metric-value">{modelSourceLabel(result.modelSource)}</span>
-          </div>
-        )}
-        {result.inferenceMs !== undefined && (
-          <div className="metric">
-            <span className="metric-label">Tempo</span>
-            <span className="metric-value">{formatInferenceMs(result.inferenceMs)}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Settings panel */}
+      {/* Settings */}
       <SettingsPanel
         show={showSettings}
         onToggle={() => setShowSettings((s) => !s)}
@@ -407,12 +508,11 @@ function SettingsPanel({
     <div className="settings-area">
       <div className="btn-row">
         <button className="btn-secondary" onClick={onToggle}>
-          {show ? "Ocultar configurações" : "⚙ Configurações"}
+          {show ? "Ocultar configuracoes" : "Configuracoes"}
         </button>
       </div>
       {show && (
         <div className="section">
-          {/* API URL */}
           <div className="section-title">URL da API</div>
           <div className="api-url-row">
             <input
@@ -423,14 +523,13 @@ function SettingsPanel({
               placeholder="http://localhost:8000"
             />
             <button className="btn-save" onClick={onSaveApiUrl}>
-              {apiUrlSaved ? "✓ Salvo" : "Salvar"}
+              {apiUrlSaved ? "Salvo!" : "Salvar"}
             </button>
           </div>
 
-          {/* Clear cache */}
           <div className="section-title" style={{ marginTop: 10 }}>Cache</div>
           <button className="btn-clear" onClick={onClearCache}>
-            {cacheCleared ? "✓ Cache limpo" : "Limpar cache"}
+            {cacheCleared ? "Cache limpo!" : "Limpar cache"}
           </button>
         </div>
       )}
@@ -446,7 +545,7 @@ function Header({ health }: { health: HealthInfo | null }) {
   const iconUrl = chrome.runtime.getURL("assets/Icone.png")
   return (
     <div className="header">
-      <img src={iconUrl} alt="ícone" className="header-icon" />
+      <img src={iconUrl} alt="icone" className="header-icon" />
       <div className="header-info">
         <div className="header-title">Detector de Phishing</div>
         <div className="header-subtitle">DomURLs-BERT via API</div>

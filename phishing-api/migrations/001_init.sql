@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS organizations (
 CREATE TABLE IF NOT EXISTS phishing_events (
     id                BIGSERIAL PRIMARY KEY,
     org_id            VARCHAR(64)  REFERENCES organizations(org_id) ON DELETE SET NULL,
+    user_email        VARCHAR(320),                 -- header X-User-Email (per-user attribution)
     event_type        VARCHAR(16)  NOT NULL,        -- 'url' | 'email'
     -- URL fields
     url               TEXT,
@@ -30,7 +31,7 @@ CREATE TABLE IF NOT EXISTS phishing_events (
     label             VARCHAR(16)  NOT NULL,        -- PHISHING | LEGITIMO | SUSPICIOUS
     analysis          TEXT,
     inference_ms      FLOAT,
-    source            VARCHAR(16),                  -- bert | cascade | catboost
+    source            VARCHAR(16),                  -- bert | cascade | catboost | email_bert
     -- Email-specific extras
     email_score       FLOAT,
     language_detected VARCHAR(16),
@@ -45,6 +46,7 @@ CREATE TABLE IF NOT EXISTS phishing_events (
 CREATE INDEX IF NOT EXISTS idx_phishing_events_org_id     ON phishing_events (org_id);
 CREATE INDEX IF NOT EXISTS idx_phishing_events_created_at ON phishing_events (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_phishing_events_is_phishing ON phishing_events (is_phishing);
+CREATE INDEX IF NOT EXISTS idx_phishing_events_user_email ON phishing_events (user_email);
 
 -- ---------------------------------------------------------------------------
 -- alert_configs

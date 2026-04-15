@@ -12,8 +12,10 @@ body {
 }
 
 .popup {
-  width: 360px;
+  width: 380px;
   min-height: 200px;
+  max-height: 520px;
+  overflow-y: auto;
   padding-bottom: 12px;
 }
 
@@ -25,6 +27,9 @@ body {
   padding: 12px 16px;
   background: #1a202c;
   color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .header-icon {
@@ -79,7 +84,7 @@ body {
   box-shadow: 0 0 4px #e53e3e;
 }
 
-/* ---- Estados de loading / erro ---- */
+/* ---- Loading / error states ---- */
 .center-content {
   display: flex;
   flex-direction: column;
@@ -112,18 +117,6 @@ body {
   color: #a0aec0;
 }
 
-.url-text {
-  font-size: 11px;
-  color: #718096;
-  word-break: break-all;
-  text-align: center;
-  max-width: 300px;
-}
-
-.error-icon {
-  font-size: 28px;
-}
-
 .error-text {
   font-size: 11px;
   color: #e53e3e;
@@ -132,9 +125,9 @@ body {
   word-break: break-all;
 }
 
-/* ---- Card de resultado ---- */
+/* ---- URL Result Card ---- */
 .result-card {
-  margin: 12px 16px 0;
+  margin: 12px 0 0;
   padding: 12px 14px;
   border-radius: 8px;
 }
@@ -154,11 +147,6 @@ body {
   border: 1px solid #feebc8;
 }
 
-.result-suspicious {
-  background: #fffff0;
-  border: 1px solid #fefcbf;
-}
-
 .result-label {
   font-size: 16px;
   font-weight: 700;
@@ -168,7 +156,6 @@ body {
 .result-phishing .result-label { color: #c53030; }
 .result-legit   .result-label { color: #276749; }
 .result-offline .result-label { color: #c05621; }
-.result-suspicious .result-label { color: #b7791f; }
 
 .result-url {
   font-size: 11px;
@@ -176,7 +163,7 @@ body {
   word-break: break-all;
 }
 
-/* ---- Seções ---- */
+/* ---- Sections ---- */
 .section {
   margin: 10px 16px 0;
 }
@@ -190,7 +177,7 @@ body {
   margin-bottom: 5px;
 }
 
-/* ---- Barra de confiança ---- */
+/* ---- Confidence bar ---- */
 .confidence-bar-wrap {
   position: relative;
   height: 18px;
@@ -215,25 +202,24 @@ body {
   color: #1a202c;
 }
 
-/* ---- Análise ---- */
+/* ---- Analysis text ---- */
 .analysis-text {
   font-size: 12px;
   color: #4a5568;
   line-height: 1.5;
 }
 
-/* ---- Métricas ---- */
+/* ---- Metrics row ---- */
 .metrics-row {
   display: flex;
-  gap: 8px;
-  margin: 10px 16px 0;
+  gap: 6px;
 }
 
 .metric {
   flex: 1;
   background: #edf2f7;
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 5px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -241,19 +227,19 @@ body {
 }
 
 .metric-label {
-  font-size: 10px;
+  font-size: 9px;
   color: #718096;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .metric-value {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: #2d3748;
 }
 
-/* ---- Botões ---- */
+/* ---- Buttons ---- */
 .btn-row {
   display: flex;
   gap: 8px;
@@ -335,17 +321,178 @@ body {
 
 .btn-save:hover { background: #2b6cb0; }
 
-/* ---- Email analysis ---- */
-.email-lang-row {
+/* ==================================================================
+   Email Section — card-based layout
+   ================================================================== */
+
+.email-section {
+  padding: 12px 16px 0;
+}
+
+.email-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.email-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2d3748;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.email-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: #edf2f7;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4a5568;
+}
+
+.email-empty {
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* ---- Email cards list ---- */
+.email-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---- Individual email card ---- */
+.email-card {
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.email-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.email-card-phishing {
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+}
+
+.email-card-suspicious {
+  background: #fffff0;
+  border: 1px solid #fefcbf;
+}
+
+.email-card-legit {
+  background: #f0fff4;
+  border: 1px solid #c6f6d5;
+}
+
+.email-card-offline {
+  background: #fffaf0;
+  border: 1px solid #feebc8;
+}
+
+/* ---- Email card header ---- */
+.email-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.email-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.email-card-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2d3748;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.email-card-time {
+  font-size: 10px;
+  color: #a0aec0;
+}
+
+/* ---- Badge ---- */
+.email-card-badge {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-phishing {
+  background: #c53030;
+  color: #fff;
+}
+
+.badge-suspicious {
+  background: #d69e2e;
+  color: #fff;
+}
+
+.badge-legit {
+  background: #38a169;
+  color: #fff;
+}
+
+.badge-offline {
+  background: #a0aec0;
+  color: #fff;
+}
+
+/* ---- Email card bar ---- */
+.email-card-bar {
+  margin-top: 8px;
+}
+
+/* ---- Email card expanded details ---- */
+.email-card-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.email-card-analysis {
+  font-size: 11px;
+  color: #4a5568;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.email-card-meta {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  margin-bottom: 6px;
 }
 
 .email-lang-badge {
   display: inline-block;
-  padding: 3px 8px;
-  font-size: 11px;
+  padding: 2px 6px;
+  font-size: 10px;
   font-weight: 600;
   background: #edf2f7;
   border-radius: 4px;
@@ -357,6 +504,26 @@ body {
   color: #2b6cb0;
 }
 
+.email-card-urls {
+  margin-bottom: 6px;
+}
+
+.email-card-urls-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #718096;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.email-card-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #a0aec0;
+}
+
+/* ---- Email URL items ---- */
 .email-urls-list {
   display: flex;
   flex-direction: column;
@@ -367,9 +534,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 8px;
+  padding: 3px 6px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .email-url-phishing {
@@ -387,7 +554,7 @@ body {
 .email-url-text {
   word-break: break-all;
   flex: 1;
-  margin-right: 8px;
+  margin-right: 6px;
 }
 
 .email-url-conf {

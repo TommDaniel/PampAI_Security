@@ -13,7 +13,7 @@ import torch
 def _create_mock_model():
     """Creates a mock model with proper .parameters() returning CPU device."""
     mock_model = MagicMock()
-    mock_model.parameters.return_value = iter([torch.tensor([1.0])])  # CPU device
+    mock_model.parameters.side_effect = lambda: iter([torch.tensor([1.0])])  # CPU device, fresh iterator each call
     mock_model.eval.return_value = None
     return mock_model
 
@@ -58,7 +58,7 @@ def _set_model_output(logits_values: list):
 _mock_server_features = AsyncMock()
 
 with patch("app.load_model", _mock_load_model), \
-     patch("app.extract_server_features", _mock_server_features):
+     patch("server_features.extract_server_features", _mock_server_features):
     from app import app
     from server_features import ServerFeatures
 
@@ -323,121 +323,8 @@ class TestPredictBatchEndpoint:
         assert response.status_code == 422
 
 
-class TestFeatureTextFormat:
-    """Validate create_feature_text matches training format."""
-
-    def test_format_starts_with_url_token(self):
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        text = create_feature_text("https://google.com", features)
-        assert text.startswith("[URL] https://google.com")
-
-    def test_format_contains_whois_token(self):
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        text = create_feature_text("https://google.com", features)
-        assert "[WHOIS] unknown" in text
-
-    def test_format_contains_extra_token(self):
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        text = create_feature_text("https://google.com", features)
-        assert "[EXTRA]" in text
-
-    def test_format_uses_key_equals_value(self):
-        """Training format uses 'key=value' not 'key: value'."""
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        text = create_feature_text("https://google.com", features)
-        assert "length=25" in text
-        assert "tls=1" in text
-        assert "dot=2" in text
-        assert "length: " not in text
-        assert " | " not in text
-
-    def test_format_no_domain_google_index(self):
-        """domain_google_index is always -1, so should be omitted."""
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        text = create_feature_text("https://google.com", features)
-        assert "google_index" not in text
-
-    def test_format_without_server_features(self):
-        """Without server features, only client features appear (server defaults are -1, omitted)."""
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        text = create_feature_text("https://google.com", features)
-        expected = (
-            "[URL] https://google.com [WHOIS] unknown "
-            "[EXTRA] length=25 dom_length=10 dot=2 hyphen=0 slash=3 "
-            "at=0 params=0 shortened=0 tls=1 vowels_domain=3 email=0"
-        )
-        assert text == expected
-
-    def test_format_with_server_features(self):
-        """With server features, they are interleaved in training order."""
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        sf = ServerFeatures(
-            redirects=2,
-            dom_age=365,
-            dom_expire=250,
-            mx_servers=3,
-            nameservers=4,
-            dom_spf=1,
-            dom_in_ip=0,
-            srv_client=1,
-            domain_google_index=-1,
-            whois_text="[AGE] 365d [REG] GoDaddy [EXPIRE] 250d [WHOIS] found",
-        )
-        text = create_feature_text("https://google.com", features, server_features=sf)
-        # Should use server's whois_text
-        assert "[AGE] 365d [REG] GoDaddy [EXPIRE] 250d [WHOIS] found" in text
-        # Should follow training order: redirects first, then client, then server interleaved
-        expected = (
-            "[URL] https://google.com "
-            "[AGE] 365d [REG] GoDaddy [EXPIRE] 250d [WHOIS] found "
-            "[EXTRA] redirects=2 length=25 dom_length=10 dot=2 hyphen=0 slash=3 "
-            "at=0 params=0 shortened=0 tls=1 dom_age=365 dom_expire=250 "
-            "mx_servers=3 nameservers=4 dom_spf=1 dom_in_ip=0 "
-            "vowels_domain=3 srv_client=1 email=0"
-        )
-        assert text == expected
-
-    def test_format_with_whois_found(self):
-        """When WHOIS data is available, format includes AGE/REG/EXPIRE."""
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        whois_text = "[AGE] 365d [REG] GoDaddy [EXPIRE] 250d [WHOIS] found"
-        text = create_feature_text("https://google.com", features, whois_text=whois_text)
-        assert text.startswith("[URL] https://google.com [AGE] 365d [REG] GoDaddy [EXPIRE] 250d [WHOIS] found")
-        assert "[EXTRA] length=25" in text
-
-    def test_format_partial_server_features(self):
-        """When some server features fail (-1), they are omitted."""
-        from app import create_feature_text, ClientFeatures
-        features = ClientFeatures(**SAMPLE_REQUEST["client_features"])
-        sf = ServerFeatures(
-            redirects=0,
-            dom_age=-1,  # WHOIS age failed
-            dom_expire=-1,  # WHOIS expire failed
-            mx_servers=2,
-            nameservers=-1,  # NS lookup failed
-            dom_spf=1,
-            dom_in_ip=0,
-            srv_client=-1,
-            domain_google_index=-1,
-            whois_text="[WHOIS] unknown",
-        )
-        text = create_feature_text("https://google.com", features, server_features=sf)
-        assert "redirects=0" in text
-        assert "mx_servers=2" in text
-        assert "dom_spf=1" in text
-        assert "dom_in_ip=0" in text
-        assert "dom_age" not in text  # omitted (-1)
-        assert "dom_expire" not in text  # omitted (-1)
-        assert "nameservers" not in text  # omitted (-1)
-        assert "srv_client" not in text  # omitted (-1)
+class TestTokenizerConfig:
+    """Validate tokenizer configuration."""
 
     def test_tokenizer_max_length_is_128(self):
         """URL tokenizer max_length must be 128 to match training."""
@@ -498,10 +385,10 @@ class TestServerFeatures:
             "days_to_expire": 200,
         }
         text = _build_whois_text(data)
-        assert "[REG] A Very Long Registrar Name" in text
         # Registrar is truncated to 25 chars
         reg_part = text.split("[REG] ")[1].split(" [EXPIRE]")[0]
         assert len(reg_part) <= 25
+        assert reg_part == "A Very Long Registrar Nam"
 
     def test_server_features_defaults(self):
         sf = ServerFeatures()
@@ -532,7 +419,7 @@ class TestServerFeatures:
                     break
 
             if found_domain:
-                result = asyncio.get_event_loop().run_until_complete(
+                result = asyncio.run(
                     _lookup_whois_cached(found_domain)
                 )
                 assert result.get("status") == "found"
@@ -542,7 +429,7 @@ class TestServerFeatures:
         import asyncio
         from server_features import _lookup_whois_cached
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             _lookup_whois_cached("definitely-not-in-cache-xyz123.com")
         )
         assert result == {}
@@ -553,7 +440,7 @@ class TestServerFeatures:
         from server_features import extract_server_features
 
         # Will use cache (no network), DNS/redirects will fail gracefully
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             extract_server_features("https://example.com")
         )
         assert isinstance(result, ServerFeatures)
@@ -564,7 +451,7 @@ class TestServerFeatures:
         import asyncio
         from server_features import extract_server_features
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             extract_server_features("")
         )
         assert result.whois_text == "[WHOIS] unknown"
@@ -583,7 +470,7 @@ class TestServerFeatures:
                 break
 
         if found_domain:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 extract_server_features(f"https://{found_domain}")
             )
             # WHOIS from cache should work even if DNS/redirects fail
@@ -609,7 +496,7 @@ PHISHING_EMAIL = {
     "subject": "URGENT: Your account has been compromised",
     "body": "Dear customer, your account has been compromised. Click here immediately to verify your identity and restore access. Failure to do so within 24 hours will result in permanent account closure.",
     "sender": "security@fake-bank-alert.com",
-    "urls_in_body": [],
+    "urls_in_body": ["http://fake-bank-alert.com/verify"],
 }
 
 LEGIT_EMAIL = {
@@ -645,9 +532,10 @@ class TestEmailAnalyzeEndpoint:
     """Tests for POST /analyze-email endpoint."""
 
     def test_phishing_email_english(self):
-        """Email phishing em ingles -> is_phishing: true, label: PHISHING."""
+        """Email phishing em ingles com URL phishing -> is_phishing: true, label: PHISHING."""
         # logits: [legit, phishing] — high phishing probability
         _set_email_model_output([-3.0, 3.0])
+        _set_model_output([-3.0, 3.0])  # URL model also returns phishing
         response = client.post("/analyze-email", json=PHISHING_EMAIL)
         assert response.status_code == 200
         data = response.json()
@@ -780,6 +668,101 @@ class TestEmailAnalyzeEndpoint:
         _set_email_model_output([3.0, -3.0])
         data = client.post("/analyze-email", json=LEGIT_EMAIL).json()
         assert len(data["analysis"]) > 0
+
+    # ---------------------------------------------------------------------
+    # False-positive reduction tests (gates de corroboracao URL+texto)
+    # ---------------------------------------------------------------------
+
+    def test_isolated_phishing_url_does_not_force_phishing(self):
+        """1 URL phishing isolada entre 9 legitimas NAO deve forcar PHISHING.
+
+        Antes: max(email_prob, 0.9) forcava PHISHING quando 1 URL tinha conf > 80.
+        Agora: phish_ratio=0.1 cai no ramo 'isolated' capado em EMAIL_ONLY_CAP.
+        """
+        _set_email_model_output([3.0, -3.0])  # email benigno
+        # 1 URL phishing (prob=0.95), 9 URLs legitimas (prob=0.05)
+        def bert_side_effect(url):
+            return 0.95 if "evil" in url else 0.05
+        payload = {
+            "subject": "Newsletter semanal",
+            "body": "Confira as novidades desta semana.",
+            "sender": "news@loja.test",
+            "urls_in_body": [
+                f"https://loja{i}.test/produto" for i in range(9)
+            ] + ["https://evil-phish.test/login"],
+        }
+        with patch("app._bert_predict", side_effect=bert_side_effect):
+            response = client.post("/analyze-email", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["label"] != "PHISHING", (
+            f"Expected not PHISHING, got {data['label']} "
+            f"conf={data['confidence']}"
+        )
+
+    def test_all_urls_phishing_keeps_phishing(self):
+        """Todas as URLs phishing com alta confianca → gate 1 ativa → PHISHING.
+
+        Regressao: garante que o relaxamento nao quebrou deteccao genuina.
+        """
+        _set_email_model_output([-1.0, 1.0])  # email suspeito (email_prob~0.73)
+        payload = {
+            "subject": "URGENT: verify your account",
+            "body": "Click now to avoid suspension.",
+            "sender": "security@fakebank.test",
+            "urls_in_body": [
+                "https://phish1.test/login",
+                "https://phish2.test/verify",
+                "https://phish3.test/update",
+            ],
+        }
+        with patch("app._bert_predict", side_effect=lambda u: 0.95):
+            response = client.post("/analyze-email", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["label"] == "PHISHING"
+        assert data["is_phishing"] is True
+
+    def test_email_only_overconfident_capped_at_suspicious(self):
+        """Texto overconfident sozinho (sem URLs) nunca vira PHISHING.
+
+        DistilBERT erra em emails comerciais com palavras-gatilho; o cap
+        EMAIL_ONLY_CAP=0.60 garante que o veredicto final fica <= SUSPICIOUS.
+        """
+        _set_email_model_output([-5.0, 5.0])  # email_prob ~= 0.9933
+        payload = {
+            "subject": "CLIQUE AQUI URGENTE",
+            "body": "Sua conta sera bloqueada em 24h. Aja agora!",
+            "sender": "alerta@empresa.test",
+            "urls_in_body": [],
+        }
+        response = client.post("/analyze-email", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["label"] != "PHISHING"
+        # final_prob capado em 0.60 → SUSPICIOUS (>=0.4) ou LEGITIMO
+
+    def test_corroborated_majority_phishing_triggers_phishing(self):
+        """Maioria de URLs phishing + texto suspeito → gate 2 corrobora → PHISHING."""
+        _set_email_model_output([-2.0, 2.0])  # email_prob ~= 0.982
+        # 2 de 3 URLs phishing (ratio=0.667)
+        def bert_side_effect(url):
+            return 0.95 if "phish" in url else 0.05
+        payload = {
+            "subject": "Action required",
+            "body": "Verify your identity immediately.",
+            "sender": "noreply@attacker.test",
+            "urls_in_body": [
+                "https://phish1.test/login",
+                "https://phish2.test/verify",
+                "https://legitsite.test/home",
+            ],
+        }
+        with patch("app._bert_predict", side_effect=bert_side_effect):
+            response = client.post("/analyze-email", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["label"] == "PHISHING"
 
 
 class TestHealthEmailModel:

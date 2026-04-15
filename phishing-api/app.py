@@ -13,7 +13,7 @@ from langdetect import detect as langdetect_detect
 import logging
 import os
 from pathlib import Path
-from auth import get_org_id
+from auth import get_org_id, get_user_email
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +41,17 @@ EMAIL_WEIGHT = 0.6
 # Cap for email-only score when no phishing URLs confirm the verdict.
 # The DistilBERT model is overconfident for many legitimate commercial emails,
 # so without URL evidence we limit the score to SUSPICIOUS at most.
-EMAIL_ONLY_CAP = 0.65
+# Valor 0.60 fica abaixo de EMAIL_PHISHING_THRESHOLD (0.70) com folga, garantindo
+# que texto sozinho nunca vira PHISHING mesmo com email_prob=0.99.
+EMAIL_ONLY_CAP = 0.60
+
+# Gates de corroboracao URL+texto para reduzir falso-positivo.
+# Gate forte: TODAS as URLs sao phishing com media alta → assume PHISHING.
+EMAIL_STRONG_URL_AVG_PROB = 0.85
+# Gate de corroboracao: maioria das URLs phishing + texto suspeito → PHISHING possivel.
+EMAIL_CORROBORATION_RATIO = 0.5
+# Piso imposto quando gate forte ativa (reduzido de 0.9 para 0.85).
+EMAIL_STRONG_FLOOR = 0.85
 
 # Threshold mais alto para URLs dentro de emails.
 # URLs em emails frequentemente sao tracking/redirect (ex: t1.em.linkedin.com/r/?id=...)
@@ -67,6 +77,16 @@ KNOWN_EMAIL_DOMAINS = {
     "hubspot.com", "salesforce.com",
     "claude.ai", "anthropic.com", "openai.com",
     "gov.br", "edu.br", "org.br",
+    # Bancos BR
+    "itau.com.br", "bradesco.com.br", "santander.com.br", "nubank.com.br",
+    "bb.com.br", "caixa.gov.br", "inter.co", "c6bank.com.br", "original.com.br",
+    # E-commerce BR
+    "mercadolivre.com.br", "mercadopago.com.br", "americanas.com.br",
+    "magazineluiza.com.br", "magalu.com", "shopee.com.br", "submarino.com.br",
+    "casasbahia.com.br", "pontofrio.com.br", "shoptime.com.br",
+    # Servicos BR
+    "serasa.com.br", "receita.fazenda.gov.br", "uol.com.br",
+    "globo.com", "terra.com.br", "ifood.com.br", "rappi.com.br", "99app.com",
 }
 
 # Sufixos de segundo nivel (SLDs) brasileiros — tratados como TLD para extracao de dominio.
@@ -156,6 +176,7 @@ class EventCreateResponse(BaseModel):
     """Modelo de resposta apos persistir um evento"""
     id: int = Field(..., description="ID unico do evento persistido")
     org_id: Optional[str] = Field(default=None, description="org_id da organizacao (None se anonimo)")
+    user_email: Optional[str] = Field(default=None, description="Email do usuario (header X-User-Email)")
     event_type: str
     is_phishing: bool
     confidence: float
@@ -227,6 +248,7 @@ class DashboardEventItem(BaseModel):
     """Um evento individual listado no dashboard"""
     id: int = Field(..., description="ID unico do evento")
     org_id: Optional[str] = Field(default=None, description="org_id da organizacao")
+    user_email: Optional[str] = Field(default=None, description="Email do usuario (header X-User-Email)")
     event_type: str = Field(..., description="Tipo do evento: 'url' ou 'email'")
     url: Optional[str] = Field(default=None, description="URL analisada")
     email_subject: Optional[str] = Field(default=None, description="Assunto do email")
@@ -234,7 +256,7 @@ class DashboardEventItem(BaseModel):
     is_phishing: bool = Field(..., description="Resultado da analise")
     confidence: float = Field(..., description="Confianca da predicao (0-100)")
     label: str = Field(..., description="Label: PHISHING, LEGITIMO ou SUSPICIOUS")
-    source: Optional[str] = Field(default=None, description="Estagio que decidiu: bert, cascade, catboost")
+    source: Optional[str] = Field(default=None, description="Estagio que decidiu: bert, cascade, catboost, email_bert")
     inference_ms: Optional[float] = Field(default=None, description="Tempo de inferencia em ms")
     created_at: str = Field(..., description="Timestamp ISO 8601")
 
@@ -449,11 +471,12 @@ def _extract_root_domain(url: str) -> str:
         from urllib.parse import urlparse
         hostname = urlparse(url).hostname or ""
         parts = hostname.lower().split(".")
-        # Dominios brasileiros com SLD (ex: .com.br, .med.br): pega 3 partes como raiz
-        if len(parts) >= 4 and parts[-1] == "br" and parts[-2] in BR_SLDS:
+        # Dominios brasileiros com SLD (ex: magazineluiza.com.br, auditar.med.br):
+        # pega as 3 ultimas partes como raiz (corrige caso len=3 onde nao ha subdominio).
+        if len(parts) >= 3 and parts[-1] == "br" and parts[-2] in BR_SLDS:
             return ".".join(parts[-3:])
         # Dominios .br simples (ex: exemplo.br)
-        if len(parts) >= 3 and parts[-1] == "br":
+        if len(parts) >= 2 and parts[-1] == "br":
             return ".".join(parts[-2:])
         if len(parts) >= 2:
             return ".".join(parts[-2:])
@@ -521,6 +544,7 @@ def _build_email_analysis(label: str, confidence: float, email_score: float,
 async def analyze_email(
     request: EmailRequest,
     org_id: Optional[str] = Depends(get_org_id),
+    user_email: Optional[str] = Depends(get_user_email),
 ):
     """Endpoint de analise de email phishing usando DistilBERT + analise de URLs.
     Persiste automaticamente o resultado no banco se disponivel.
@@ -566,22 +590,48 @@ async def analyze_email(
     if request.urls_in_body and model is not None:
         url_results = _analyze_email_urls(request.urls_in_body)
 
-    # 5. Combinacao de scores
+    # 5. Combinacao de scores — gates de corroboracao URL+texto.
+    # Principio: exigir evidencia das URLs para classificar como PHISHING.
+    # Texto do DistilBERT sozinho e overconfident em emails comerciais legitimos,
+    # entao nunca deixamos ele passar de SUSPICIOUS (cap EMAIL_ONLY_CAP).
+    total_urls = len(url_results)
     phishing_urls = [r for r in url_results if r.is_phishing]
-    high_confidence_phishing = [r for r in phishing_urls if r.confidence > 80]
+    num_phishing = len(phishing_urls)
+    phish_ratio = (num_phishing / total_urls) if total_urls else 0.0
+    avg_phish_prob = (
+        sum(r.confidence / 100 for r in phishing_urls) / num_phishing
+        if num_phishing else 0.0
+    )
 
-    if high_confidence_phishing:
-        # URLs with high confidence confirm phishing
-        final_prob = max(email_prob, 0.9)
-    elif phishing_urls:
-        # Some phishing URLs: weighted combination
-        max_url_prob = max(r.confidence / 100 for r in phishing_urls)
-        final_prob = EMAIL_WEIGHT * email_prob + (1 - EMAIL_WEIGHT) * max_url_prob
+    # Gate 1: TODAS as URLs sao phishing com alta confianca → PHISHING forte.
+    all_urls_phishing_strong = (
+        total_urls >= 1
+        and phish_ratio == 1.0
+        and avg_phish_prob >= EMAIL_STRONG_URL_AVG_PROB
+    )
+
+    # Gate 2: maioria das URLs phishing + texto suspeito → corroboracao.
+    corroborated = (
+        phish_ratio >= EMAIL_CORROBORATION_RATIO
+        and email_prob >= EMAIL_SUSPICIOUS_THRESHOLD
+    )
+
+    if all_urls_phishing_strong:
+        # Piso reduzido (0.85) e so quando todas as URLs corroboram.
+        final_prob = max(email_prob, EMAIL_STRONG_FLOOR)
+    elif corroborated:
+        # Combinacao ponderada usando ratio*avg (evita dominancia de max).
+        url_signal = phish_ratio * avg_phish_prob
+        final_prob = EMAIL_WEIGHT * email_prob + (1 - EMAIL_WEIGHT) * url_signal
+    elif num_phishing > 0:
+        # URLs phishing isoladas entre legitimas → capado em SUSPICIOUS.
+        url_signal = phish_ratio * avg_phish_prob
+        final_prob = min(
+            EMAIL_WEIGHT * email_prob + (1 - EMAIL_WEIGHT) * url_signal,
+            EMAIL_ONLY_CAP,
+        )
     else:
-        # No phishing URLs: cap the email-only score.
-        # The DistilBERT model is overconfident for legitimate commercial emails
-        # (e.g. Google, LinkedIn, Netflix notifications score >95% phishing).
-        # Without URL evidence, we limit the verdict to SUSPICIOUS at most.
+        # Sem URL suspeita: texto sozinho capado em SUSPICIOUS.
         final_prob = min(email_prob, EMAIL_ONLY_CAP)
 
     # 6. Labels
@@ -606,6 +656,7 @@ async def analyze_email(
         try:
             row = await log_event(
                 org_id=org_id,
+                user_email=user_email,
                 event_type="email",
                 is_phishing=is_phishing,
                 confidence=round(confidence, 2),
@@ -614,6 +665,7 @@ async def analyze_email(
                 email_sender=request.sender,
                 analysis=analysis,
                 inference_ms=round(inference_ms, 2),
+                source="email_bert",
                 email_score=round(email_score, 2),
                 language_detected=language_detected,
                 translated=was_translated,
@@ -982,11 +1034,13 @@ async def delete_alert_config_endpoint(
 async def create_event(
     request: EventCreateRequest,
     org_id: Optional[str] = Depends(get_org_id),
+    user_email: Optional[str] = Depends(get_user_email),
 ):
     """Persiste um evento de analise de phishing no banco de dados.
 
     Requer X-API-Key para associar o evento a uma organizacao.
     Requisicoes anonimas (sem X-API-Key) sao aceitas mas ficam sem org_id.
+    O header X-User-Email (opcional) atribui o evento a um usuario especifico.
     """
     from db import DB_ENABLED, log_event
 
@@ -999,6 +1053,7 @@ async def create_event(
     try:
         row = await log_event(
             org_id=org_id,
+            user_email=user_email,
             event_type=request.event_type,
             is_phishing=request.is_phishing,
             confidence=request.confidence,
@@ -1025,6 +1080,7 @@ async def create_event(
     return EventCreateResponse(
         id=row["id"],
         org_id=row["org_id"],
+        user_email=row["user_email"],
         event_type=row["event_type"],
         is_phishing=row["is_phishing"],
         confidence=row["confidence"],
@@ -1133,6 +1189,7 @@ async def predict_batch_phishing(
 async def predict_batch(
     requests: List[PhishingRequest],
     org_id: Optional[str] = Depends(get_org_id),
+    user_email: Optional[str] = Depends(get_user_email),
 ):
     """
     Batch prediction endpoint.
@@ -1175,6 +1232,7 @@ async def predict_batch(
                     try:
                         row = await log_event(
                             org_id=org_id,
+                            user_email=user_email,
                             event_type="url",
                             is_phishing=is_phishing,
                             confidence=round(confidence, 2),
@@ -1202,6 +1260,7 @@ async def predict_batch(
 async def predict(
     request: PhishingRequest,
     org_id: Optional[str] = Depends(get_org_id),
+    user_email: Optional[str] = Depends(get_user_email),
 ):
     """
     Endpoint principal para deteccao de phishing.
@@ -1237,6 +1296,7 @@ async def predict(
             try:
                 row = await log_event(
                     org_id=org_id,
+                    user_email=user_email,
                     event_type="url",
                     is_phishing=is_phishing,
                     confidence=round(confidence, 2),
@@ -1268,6 +1328,7 @@ async def get_dashboard_events(
     limit: int = 20,
     event_type: Optional[str] = None,
     is_phishing: Optional[bool] = None,
+    user_email: Optional[str] = None,
     caller_org_id: Optional[str] = Depends(get_org_id),
 ):
     """Lista eventos de phishing de uma organizacao com paginacao e filtros opcionais.
@@ -1277,6 +1338,7 @@ async def get_dashboard_events(
     - limit: itens por pagina (padrao 20, max 100)
     - event_type: filtrar por 'url' ou 'email'
     - is_phishing: filtrar por true (phishing) ou false (legitimo)
+    - user_email: filtrar por email de usuario (atribuicao per-user)
 
     Requer autenticacao. Apenas a propria organizacao pode acessar seus eventos.
     """
@@ -1300,6 +1362,7 @@ async def get_dashboard_events(
             limit=limit,
             event_type=event_type,
             is_phishing=is_phishing,
+            user_email=user_email,
         )
     except Exception as exc:
         logger.error(f"Erro ao listar eventos do dashboard: {exc}")
@@ -1310,6 +1373,7 @@ async def get_dashboard_events(
             DashboardEventItem(
                 id=item["id"],
                 org_id=item["org_id"],
+                user_email=item.get("user_email"),
                 event_type=item["event_type"],
                 url=item["url"],
                 email_subject=item["email_subject"],

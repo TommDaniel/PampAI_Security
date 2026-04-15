@@ -93,10 +93,11 @@ EMAIL_EVENT_PAYLOAD = {
 NOW = datetime(2026, 4, 9, 12, 0, 0, tzinfo=timezone.utc)
 
 
-def _make_log_event_return(org_id=None, event_type="url"):
+def _make_log_event_return(org_id=None, event_type="url", user_email=None):
     return {
         "id": 42,
         "org_id": org_id,
+        "user_email": user_email,
         "event_type": event_type,
         "is_phishing": True,
         "confidence": 92.5,

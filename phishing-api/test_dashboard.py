@@ -67,6 +67,7 @@ NOW = datetime(2026, 4, 9, 12, 0, 0, tzinfo=timezone.utc)
 SAMPLE_EVENT = {
     "id": 1,
     "org_id": "acme-corp",
+    "user_email": None,
     "event_type": "url",
     "url": "http://phishing.example.com",
     "email_subject": None,
@@ -263,6 +264,7 @@ class TestDashboardEventsResponseSchema:
                     limit=10,
                     event_type=None,
                     is_phishing=None,
+                    user_email=None,
                 )
         finally:
             db_module.DB_ENABLED = original
@@ -284,6 +286,7 @@ class TestDashboardEventsResponseSchema:
                     limit=20,
                     event_type="email",
                     is_phishing=None,
+                    user_email=None,
                 )
         finally:
             db_module.DB_ENABLED = original

@@ -4,7 +4,9 @@
       "Bash(python3:*)",
       "WebSearch",
       "WebFetch(domain:jisis.org)",
-      "WebFetch(domain:www.mdpi.com)"
+      "WebFetch(domain:www.mdpi.com)",
+      "Bash(python -m pytest test_api.py -v --tb=short)",
+      "Bash(python -m pytest test_integration.py -v --tb=short)"
     ]
   }
 }

@@ -14,11 +14,31 @@ from fastapi import Security, HTTPException
 from fastapi.security import APIKeyHeader
 from sqlalchemy import select
 
-from db import AsyncSessionLocal, DB_ENABLED, organizations
+import db as _db
+from db import AsyncSessionLocal, organizations
 
 logger = logging.getLogger(__name__)
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+_user_email_header = APIKeyHeader(name="X-User-Email", auto_error=False)
+
+
+async def get_user_email(
+    email: Optional[str] = Security(_user_email_header),
+) -> Optional[str]:
+    """FastAPI dependency — resolves the X-User-Email header to a normalized email.
+
+    The header is advisory (per-user attribution), not authenticating. Invalid or
+    missing values return None — never raises, never blocks the request.
+
+    Returns the lowercased, trimmed email, or None.
+    """
+    if not email:
+        return None
+    email = email.strip().lower()
+    if "@" not in email or len(email) > 320:
+        return None
+    return email
 
 
 async def get_org_id(
@@ -37,7 +57,7 @@ async def get_org_id(
     if not api_key:
         return None  # anonymous request — allowed
 
-    if not DB_ENABLED:
+    if not _db.DB_ENABLED:
         raise HTTPException(
             status_code=503,
             detail="Database unavailable — API key authentication not possible",
@@ -76,7 +96,7 @@ async def create_org(org_id: str, name: Optional[str] = None) -> str:
         ValueError if org_id already exists.
         RuntimeError if DB is not available.
     """
-    if not DB_ENABLED:
+    if not _db.DB_ENABLED:
         raise RuntimeError("Database not available")
 
     api_key = generate_api_key()

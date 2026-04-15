@@ -157,6 +157,7 @@ def _build_payload(org_id: str, event: dict) -> dict:
         "org_id": org_id,
         "event": {
             "id": event.get("id"),
+            "user_email": event.get("user_email"),
             "event_type": event.get("event_type"),
             "is_phishing": event.get("is_phishing"),
             "confidence": event.get("confidence"),
