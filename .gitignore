@@ -1,0 +1,49 @@
+# Datasets (grandes demais para o GitHub — usar Drive/DVC/HuggingFace)
+*.csv
+!scripts/**/*.csv
+benchmark-modelos/dataset_phishing_brasileiro.csv
+benchmark-modelos/dataset_multimodal.csv
+benchmark-modelos/grega_phishing_dom.csv
+benchmark-modelos/resultados/features_extraidas.csv
+blacklist/blacklist.csv
+whitelist/*.csv
+
+# Modelos treinados
+*.pkl
+*.joblib
+*.safetensors
+*.onnx
+phishing-api/model/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node / extensão
+extensao-phishing/node_modules/
+extensao-modulos/
+
+# Build artifacts
+extensao-phishing/build/
+extensao-phishing/.parcel-cache/
+dist/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Ambiente / secrets
+.env
+.env.*
+!.env.example
+
+# Claude Code
+.claude/scheduled_tasks.lock
+scripts/ralph/.last-branch
+scripts/ralph/archive/
+
+# OS
+.DS_Store
+Thumbs.db
