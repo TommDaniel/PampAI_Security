@@ -1,0 +1,40 @@
+[
+  {
+    "timestamp": "2026-04-11T16:41:08.988577+00:00",
+    "blacklist": {
+      "success": true,
+      "before": 848130,
+      "after": 752045,
+      "added": 288,
+      "removed": 96373
+    },
+    "whitelist": {
+      "success": true,
+      "before": 32406,
+      "after": 32577,
+      "added": 1018,
+      "removed": 847
+    },
+    "conflicts": 2,
+    "dry_run": true
+  },
+  {
+    "timestamp": "2026-04-11T18:12:41.163706+00:00",
+    "blacklist": {
+      "success": true,
+      "before": 848130,
+      "after": 774909,
+      "added": 5953,
+      "removed": 79174
+    },
+    "whitelist": {
+      "success": true,
+      "before": 32406,
+      "after": 32497,
+      "added": 942,
+      "removed": 851
+    },
+    "conflicts": 9,
+    "dry_run": false
+  }
+]

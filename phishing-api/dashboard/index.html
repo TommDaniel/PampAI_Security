@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard Anti-Phishing</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -253,6 +254,7 @@
       width: 100%;
       border-collapse: collapse;
       font-size: 13px;
+      table-layout: fixed;
     }
 
     thead th {
@@ -264,7 +266,18 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       border-bottom: 1px solid var(--border);
+      overflow: hidden;
     }
+
+    /* Larguras fixas das colunas: ID | Tipo | Veredicto | Alvo | Usuario | Confianca | Origem | Data */
+    thead th:nth-child(1) { width: 5%; }
+    thead th:nth-child(2) { width: 6%; }
+    thead th:nth-child(3) { width: 10%; }
+    thead th:nth-child(4) { width: 28%; }
+    thead th:nth-child(5) { width: 17%; }
+    thead th:nth-child(6) { width: 13%; }
+    thead th:nth-child(7) { width: 9%; }
+    thead th:nth-child(8) { width: 12%; }
 
     tbody tr { border-bottom: 1px solid var(--border); }
     tbody tr:last-child { border-bottom: none; }
@@ -273,6 +286,18 @@
     tbody td {
       padding: 10px 12px;
       vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 0;
+    }
+
+    /* Células que podem ter quebra de linha (Alvo com sender+subject) */
+    tbody td.cell-wrap {
+      white-space: normal;
+      overflow: hidden;
+      display: table-cell;
+      max-width: 0;
     }
 
     .badge {
@@ -343,7 +368,7 @@
     .refresh-btn:hover { border-color: var(--accent); color: var(--text); }
 
     .url-cell {
-      max-width: 260px;
+      display: block;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -786,8 +811,9 @@
       const source = ev.source ? `<span style="color:var(--muted);font-size:11px">${escHtml(ev.source)}</span>` : '—';
       const conf = ev.confidence != null ? fmtConfidence(ev.confidence) : '—';
 
-      const userCell = ev.user_email
-        ? `<span style="color:var(--muted);font-size:12px">${escHtml(ev.user_email)}</span>`
+      const userEmail = ev.user_email ? escHtml(ev.user_email) : null;
+      const userCell = userEmail
+        ? `<span title="${userEmail}" style="color:var(--muted);font-size:12px">${userEmail}</span>`
         : '—';
 
       return `
@@ -795,11 +821,11 @@
           <td style="color:var(--muted);font-size:12px">#${ev.id}</td>
           <td>${typeBadge}</td>
           <td>${verdictBadge}</td>
-          <td>${detail}</td>
-          <td>${userCell}</td>
+          <td class="cell-wrap">${detail}</td>
+          <td title="${userEmail || ''}">${userCell}</td>
           <td>${conf}</td>
           <td>${source}</td>
-          <td style="color:var(--muted);font-size:12px;white-space:nowrap">${fmtDate(ev.created_at)}</td>
+          <td style="color:var(--muted);font-size:12px">${fmtDate(ev.created_at)}</td>
         </tr>
       `;
     }).join('');
