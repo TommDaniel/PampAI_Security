@@ -1,6 +1,7 @@
 # Datasets (grandes demais para o GitHub — usar Drive/DVC/HuggingFace)
 *.csv
 !scripts/**/*.csv
+!validacao_formal/lista_validacao.csv
 benchmark-modelos/dataset_phishing_brasileiro.csv
 benchmark-modelos/dataset_multimodal.csv
 benchmark-modelos/grega_phishing_dom.csv
