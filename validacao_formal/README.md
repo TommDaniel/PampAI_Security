@@ -16,7 +16,8 @@ agora comparando os dois backbones BERT entre si.
 validacao_formal/
 ├── README.md
 ├── requirements.txt
-├── lista_validacao.csv     ← 195 URLs pré-registradas (100 legítimas + 95 phishing)
+├── gerar_lista.py          ← gerador determinístico de lista_validacao.csv
+├── lista_validacao.csv     ← 1946 URLs pré-registradas (1000 legítimas + 946 phishing)
 ├── validacao_formal.py     ← script principal
 ├── whois_cache.json        ← criado automaticamente na 1ª execução
 └── resultados/
@@ -101,19 +102,54 @@ mínimo `[URL] {url} {whois_txt} [EXTRA] none`.
 
 ## Lista pré-registrada
 
-`lista_validacao.csv` traz 195 URLs categorizadas:
+`lista_validacao.csv` traz **1946 URLs** geradas deterministicamente
+(``random.seed = 42``) pelo script ``gerar_lista.py``, a partir das
+fontes consolidadas do próprio projeto:
 
-- **100 legítimas**: bancos brasileiros (8), governo (10), big-tech (22),
-  e-commerce BR (9), mídia BR (8), universidades BR (11), viagem (8),
-  serviços públicos/saúde (9), dev/tech (15).
-- **95 phishing**: 45 sintéticas (IP-based, typosquatting, subdomínios
-  longos, TLDs suspeitos, marcas conhecidas e brasileiras) + 50 reais
-  retiradas da blacklist consolidada do projeto.
+**1000 legítimas** (do mais para o menos prioritário):
+- 46 URLs curadas BR (bancos, governo, universidades, viagem, saúde,
+  serasa, etc.) — todas as URLs operacionais relevantes do contexto
+  brasileiro do trabalho.
+- 273 do `curated_br` da whitelist (curadoria nacional).
+- 244 do `tranco` (top sites globais — Tranco List, Le Pochat et al. 2019).
+- 283 do `majestic` (Majestic Million).
+- 154 do `curated_global` (curadoria global de big-tech).
 
-A composição cobre os mesmos padrões usados nos validadores qualitativos
-existentes (`whitelist/validacao_modelo.py` e `whitelist/validacao_cascata.py`),
-ampliada para a quantidade necessária para ter percentis de latência
-razoavelmente estáveis.
+**946 phishing** (todos retirados das mesmas fontes da blacklist
+embarcada na extensão — PhishTank, OpenPhish, URLhaus, PhishStats,
+Phishing.Database):
+- 546 URLs reais que **imitam marcas conhecidas** — distribuídas entre
+  marcas globais (paypal, google, amazon, microsoft, apple, netflix,
+  facebook, instagram, whatsapp, linkedin, twitter, spotify, outlook,
+  office365, icloud, dropbox, github, ebay, chase, wells fargo, bofa,
+  citi) e marcas brasileiras (bradesco, itaú, caixa, nubank, santander,
+  banco do brasil, mercado livre, magalu, americanas, correios, gov.br,
+  receita, detran, submarino, casas bahia, shopee).
+- 357 URLs reais de amostra geral da blacklist (sem viés de marca,
+  para cobertura ampla).
+- 43 URLs sintéticas variadas (IP-based, typosquatting/homóglifos,
+  subdomínios suspeitos, domínios verborrágicos, TLDs descartáveis
+  `.tk/.ml/.ga/.cf/.xyz/.top`).
+
+Para regerar a lista (com a seed fixa 42, os resultados são reprodutíveis):
+
+```bash
+python gerar_lista.py --total 2000
+```
+
+A escala (~2000 URLs) é ~20× maior do que as rodadas qualitativas
+(`validacao_modelo.json` 62 URLs, `validacao_cascata.json` 101 URLs)
+e dá percentis de latência estáveis e cobertura suficiente para
+estimativas confiáveis de FPR e Recall sobre o conjunto.
+
+> **Tempo esperado de execução** (referência, GPU NVIDIA T4 / Colab):
+> - Coleta WHOIS de ~1300 domínios únicos: 30–60 min na 1ª rodada
+>   (cacheado nas seguintes via `whois_cache.json`).
+> - Inferência: ~6–10 min para os 2 modelos sobre 1946 URLs (em CPU
+>   pode dobrar; em GPU rápida fica no minuto único).
+>
+> Para acelerar testes iniciais, use `--no-whois` (todas as URLs
+> recebem `[WHOIS] unknown`).
 
 ## Saída esperada
 
@@ -123,9 +159,9 @@ VALIDAÇÃO FORMAL — COMPARAÇÃO ENTRE MODELOS
 ==========================================================================
 Métrica                         URL+WHOIS               Multimodal
 --------------------------------------------------------------------------
-URLs avaliadas                  195                     195
-    Legítimas                   100                     100
-    Phishing                    95                      95
+URLs avaliadas                  1946                    1946
+    Legítimas                   1000                    1000
+    Phishing                    946                     946
 Verdadeiros Positivos (VP)      …                       …
 Falsos Positivos (FP)           …                       …
 Acurácia                        0.xxxx                  0.xxxx
