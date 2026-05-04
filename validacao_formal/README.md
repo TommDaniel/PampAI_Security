@@ -16,13 +16,42 @@ agora comparando os dois backbones BERT entre si.
 validacao_formal/
 ├── README.md
 ├── requirements.txt
-├── gerar_lista.py          ← gerador determinístico de lista_validacao.csv
-├── lista_validacao.csv     ← 1946 URLs pré-registradas (1000 legítimas + 946 phishing)
-├── validacao_formal.py     ← script principal
-├── whois_cache.json        ← criado automaticamente na 1ª execução
+├── gerar_lista.py                    ← gerador determinístico
+├── corrigir_rotulos_e_recalcular.py  ← correção pós-rodada de gov.br falsamente phishing
+├── lista_validacao.csv               ← 1946 URLs pré-registradas (1013 legítimas + 933 phishing)
+├── validacao_formal.py               ← script principal
+├── whois_cache.json                  ← criado automaticamente na 1ª execução
 └── resultados/
-    └── validacao_formal.json   ← JSON detalhado (criado pelo script)
+    ├── validacao_formal.json             ← JSON da rodada original
+    └── validacao_formal_corrigido.json   ← JSON pós-correção dos falsos rótulos
 ```
+
+### Correção pós-rodada — falsos rótulos da blacklist
+
+Após a rodada formal de 4 de maio de 2026 ter sido executada, foi
+identificado que **13 URLs `*.gov.br` rotuladas como `phishing` na
+blacklist consolidada eram, na verdade, órgãos públicos brasileiros
+legítimos** (câmaras municipais como `crecise.gov.br`, sistemas de
+licitação como `licitacao.rc.sp.gov.br`, prefeituras como
+`brejogrande.se.gov.br`, etc.) que foram inseridas em algum dos *feeds*
+upstream por engano.
+
+O script `corrigir_rotulos_e_recalcular.py` aplica a reclassificação
+manual desses casos e recalcula as métricas a partir dos resultados de
+inferência já existentes (sem re-rodar os modelos). A regra é
+conservadora: só são reclassificados os domínios que **terminam
+exatamente** em `.gov.br|leg.br|jus.br`. Casos como
+`mda.gov.br.tripod.com` e `webmail.saude.gov.br.structures-metal.com`
+permanecem como phishing por usarem `gov.br` como subdomínio enganoso.
+
+A reclassificação muda a composição do conjunto de **1000+946** para
+**1013+933** (953 legítimas → 1013 legítimas; 946 phishing → 933
+phishing). É um ajuste de ~1,3% do total, mas suficiente para impactar
+Recall, F1 e MCC dos dois modelos por +0,5–1,2pp cada.
+
+**As métricas finais reportadas para o TCC são as do JSON corrigido**
+(`validacao_formal_corrigido.json`), e a contaminação detectada é em si
+um achado documentável sobre a qualidade dos *feeds* públicos de phishing.
 
 ## Pré-requisitos
 

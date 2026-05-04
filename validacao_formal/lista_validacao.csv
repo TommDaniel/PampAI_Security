@@ -66,7 +66,7 @@ https://behance.net,legitimate,majestic,global_popular
 http://apps-started.ghost.io,phishing,blacklist-real,amostra-geral
 http://bankofamerica02-logininformation.duckdns.org,phishing,blacklist-real,imita-bankofamerica
 http://dropbox-nft.firebaseapp.com,phishing,blacklist-real,imita-dropbox
-http://camaraeugeniodecastro.rs.gov.br,phishing,blacklist-real,imita-gov.br
+http://camaraeugeniodecastro.rs.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 https://www.estadao.com.br,legitimate,curated_br,midia
 http://outlook.office365.cloudfreespace.net,phishing,blacklist-real,imita-outlook
 http://google-account-recovery-alert.com/signin,phishing,sintetica,marca-global
@@ -161,7 +161,7 @@ https://www.nytimes.com,legitimate,majestic,global_popular
 https://www.roblox.com,legitimate,tranco,global_popular
 https://root-servers.net,legitimate,tranco,global_popular
 https://mackenzie.br,legitimate,curated_br,universidades
-http://camarairacema.ce.gov.br,phishing,blacklist-real,imita-gov.br
+http://camarairacema.ce.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 http://usps.com-trackrch.top,phishing,blacklist-real,amostra-geral
 https://wsj.com,legitimate,majestic,global_popular
 http://bafkreifk6qvfakrmz5r67e5khgnq5s2terxsyqag5ovufez5vi3fgllgha.ipfs.dweb.link,phishing,blacklist-real,amostra-geral
@@ -284,7 +284,7 @@ http://mtbankservar.dynamic-dns.net,phishing,blacklist-real,amostra-geral
 https://www.itau.com.br,legitimate,curadoria-br,banco
 http://bancoitaufeitopravoce.com,phishing,blacklist-real,amostra-geral
 http://facebooknew.net,phishing,blacklist-real,amostra-geral
-http://crecise.gov.br,phishing,blacklist-real,imita-gov.br
+http://crecise.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 http://mail.iforgot-apple.ws,phishing,blacklist-real,imita-apple
 http://eskimofrozen.com,phishing,blacklist-real,amostra-geral
 http://pahularora.github.io,phishing,blacklist-real,imita-github
@@ -530,7 +530,7 @@ https://hp.com,legitimate,majestic,global_popular
 http://103.45.67.89/netflix/verify-account,phishing,sintetica,ip-based
 https://www.example.com,legitimate,majestic,global_popular
 https://microsoftonline.com,legitimate,tranco,global_popular
-http://camaraareial.pb.gov.br,phishing,blacklist-real,imita-gov.br
+http://camaraareial.pb.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 https://unicamp.br,legitimate,curated_br,universidades
 https://a2z.com,legitimate,tranco,global_popular
 http://twitterxunq.nylaproductions.com,phishing,blacklist-real,imita-twitter
@@ -782,7 +782,7 @@ https://www.windows.net,legitimate,tranco,global_popular
 http://vipebaye.com,phishing,blacklist-real,imita-ebay
 https://www.gc.ca,legitimate,majestic,global_popular
 http://outlook-files838685-5378.s3.eu-de.cloud-object-storage.appdomain.cloud,phishing,blacklist-real,imita-outlook
-http://cmnovacanaapaulista.sp.gov.br,phishing,blacklist-real,imita-gov.br
+http://cmnovacanaapaulista.sp.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 https://www.office365.com,legitimate,tranco,global_popular
 http://linkedinpremium.life,phishing,blacklist-real,imita-linkedin
 https://substack.com,legitimate,majestic,global_popular
@@ -802,7 +802,7 @@ http://instagramsecrettalk.blogspot.al,phishing,blacklist-real,imita-instagram
 http://qjsxz.media4europe.info,phishing,blacklist-real,amostra-geral
 https://daycoval.com.br,legitimate,curated_br,bancos
 http://icloud-ecuador.miprimersitioweb.org,phishing,blacklist-real,imita-icloud
-http://licitacao.rc.sp.gov.br,phishing,blacklist-real,imita-gov.br
+http://licitacao.rc.sp.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 http://dev-tkia.pantheonsite.io,phishing,blacklist-real,amostra-geral
 http://att-100062.weeblysite.com,phishing,blacklist-real,amostra-geral
 https://correios.com.br,legitimate,curated_br,servicos
@@ -868,7 +868,7 @@ http://pencopotanakungoogleplay.from35.biz.id,phishing,blacklist-real,imita-goog
 https://www.riotgames.com,legitimate,curated_global,entertainment
 http://uspz.uspsol.top,phishing,blacklist-real,amostra-geral
 http://tanishpashte.github.io,phishing,blacklist-real,imita-github
-http://carloschagas.mg.gov.br,phishing,blacklist-real,imita-gov.br
+http://carloschagas.mg.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 http://uspscx.us,phishing,blacklist-real,amostra-geral
 https://www.google-analytics.com,legitimate,tranco,global_popular
 https://www.stf.jus.br,legitimate,curadoria-br,governo
@@ -1013,7 +1013,7 @@ https://decolar.com,legitimate,curated_br,servicos
 https://www.bradesco.com.br,legitimate,curadoria-br,banco
 http://ssso--ndax-io-auths.webflow.io,phishing,blacklist-real,amostra-geral
 http://chatwaaz.duckdns.org,phishing,blacklist-real,amostra-geral
-http://camaradearaua.se.gov.br,phishing,blacklist-real,imita-gov.br
+http://camaradearaua.se.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 http://cs18468.tmweb.ru,phishing,blacklist-real,amostra-geral
 http://rhvdx.blogspot.lu,phishing,blacklist-real,amostra-geral
 https://zapimoveis.com.br,legitimate,curated_br,servicos
@@ -1275,7 +1275,7 @@ http://18feb38d-9304-49ed-8a45-4b919bb3ed9f-netflix-clone-simple.pages.dev,phish
 https://www.play.google.com,legitimate,majestic,global_popular
 http://chase-103084.square.site,phishing,blacklist-real,imita-chase
 http://appleid-ar.mimain-website.live,phishing,blacklist-real,imita-apple
-http://www.pittur.pitimbu.pb.gov.br,phishing,blacklist-real,imita-gov.br
+http://www.pittur.pitimbu.pb.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 https://sbt.com.br,legitimate,curated_br,midia
 https://uel.br,legitimate,curated_br,universidades
 https://www.ntp.org,legitimate,tranco,global_popular
@@ -1466,7 +1466,7 @@ https://gov.br,legitimate,curated_br,governo
 http://dicsordegift.ru,phishing,blacklist-real,amostra-geral
 http://g1.rooool.com,phishing,blacklist-real,amostra-geral
 https://commons.wikimedia.org,legitimate,majestic,global_popular
-http://brejogrande.se.gov.br,phishing,blacklist-real,imita-gov.br
+http://brejogrande.se.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 http://wellsfargo-1.duckdns.org,phishing,blacklist-real,imita-wellsfargo
 https://slideshare.net,legitimate,majestic,global_popular
 https://www.olx.com.br,legitimate,curated_br,servicos
@@ -1527,7 +1527,7 @@ http://8.ipro289.com,phishing,blacklist-real,amostra-geral
 http://pub-3e59e6a70318440583ed96e64eb7f303.r2.dev,phishing,blacklist-real,amostra-geral
 https://www.google.com,legitimate,curated_global,search_engines
 https://buscacep.correios.com.br,legitimate,curated_br,servicos
-http://cmsjm.rj.gov.br,phishing,blacklist-real,imita-gov.br
+http://cmsjm.rj.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 https://www.aboutads.info,legitimate,majestic,global_popular
 https://nginx.com,legitimate,majestic,global_popular
 http://center-forms.com,phishing,blacklist-real,amostra-geral
@@ -1585,7 +1585,7 @@ https://researchgate.net,legitimate,majestic,global_popular
 https://reuters.com,legitimate,majestic,global_popular
 https://www.whatsapp.com,legitimate,curated_global,social_media
 https://www.yandex.ru,legitimate,tranco,global_popular
-http://educacao.barretos.sp.gov.br,phishing,blacklist-real,imita-gov.br
+http://educacao.barretos.sp.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 https://keenetic.io,legitimate,tranco,global_popular
 http://oxv.zbnj191.vip,phishing,blacklist-real,amostra-geral
 https://www.msftncsi.com,legitimate,tranco,global_popular
@@ -1860,7 +1860,7 @@ http://66.232.149.34.bc.googleusercontent.com,phishing,blacklist-real,imita-goog
 https://epicgames.com,legitimate,curated_global,entertainment
 http://www--wellsfargo--com--eq49329d48d6c.wsipv6.com,phishing,blacklist-real,imita-wellsfargo
 https://cnnbrasil.com.br,legitimate,curated_br,midia
-http://camaradecorregodoouro.go.gov.br,phishing,blacklist-real,imita-gov.br
+http://camaradecorregodoouro.go.gov.br,legitimate,blacklist-real-revertida,orgao-publico-legitimo (blacklist upstream errada)
 http://f0510431.xsph.ru,phishing,blacklist-real,amostra-geral
 http://baucarshopee1444.weebly.com,phishing,blacklist-real,imita-shopee
 http://citizensbank-login.com,phishing,blacklist-real,imita-citi
