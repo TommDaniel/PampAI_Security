@@ -1,0 +1,14 @@
+{
+  "descricao": "Q2 da banca — FPR recalculada apenas sobre as URLs legitimas DISJUNTAS do treino (removida a contaminacao treino-teste do DomURLs-BERT).",
+  "gerado_em": "2026-05-31",
+  "script": "validacao_formal/recalcular_fpr_disjunta.py",
+  "limiar": 0.65,
+  "fonte_probabilidades": "validacao_formal/resultados/validacao_formal_corrigido.json (resultados_individuais.url_whois)",
+  "kmack_urls_unicas_train_valid": 567571,
+  "subconjuntos": {
+    "todas_legitimas": { "fp": 66, "n": 1013, "fpr": 0.0652, "nota": "valor reportado na Tabela 8" },
+    "contaminadas":    { "fp": 7,  "n": 306,  "fpr": 0.0229, "nota": "URLs vistas no treino (train+valid do kmack)" },
+    "disjuntas":       { "fp": 59, "n": 707,  "fpr": 0.0835, "nota": "RESPOSTA DA Q2 — URLs ineditas, sem contaminacao" }
+  },
+  "conclusao": "Removida a contaminacao treino-teste, a FPR sobe de 6,52% para 8,35%: o modelo erra menos nas URLs legitimas que ja viu no treino (2,29%) do que nas ineditas (8,35%). O valor 8,35% e o numero honesto para a Secao de Limitacoes."
+}

@@ -1,0 +1,22 @@
+{
+  "descricao": "Q8 da banca — teste de carga real do endpoint /predict sob concorrencia (cascata DomURLs-BERT + CatBoost, inferencia em CPU, Docker single-replica).",
+  "gerado_em": "2026-05-31",
+  "script": "phishing-api/teste_carga.py",
+  "config": {
+    "url": "http://localhost:8000",
+    "req_por_nivel": 200,
+    "niveis": [1, 2, 4, 8, 16, 32],
+    "device": "cpu",
+    "modo_inferencia": "cascade"
+  },
+  "niveis": [
+    { "concorrencia": 1,  "vazao_req_s": 20.1, "p50_ms": 44.6,   "p95_ms": 67.3,   "p99_ms": 147.3, "erros": 0 },
+    { "concorrencia": 2,  "vazao_req_s": 24.1, "p50_ms": 79.6,   "p95_ms": 97.5,   "p99_ms": 280.7, "erros": 0 },
+    { "concorrencia": 4,  "vazao_req_s": 24.4, "p50_ms": 154.8,  "p95_ms": 259.3,  "p99_ms": 374.8, "erros": 0, "nota": "P95 dobrou vs baseline" },
+    { "concorrencia": 8,  "vazao_req_s": 23.2, "p50_ms": 308.2,  "p95_ms": 545.9,  "p99_ms": 778.1, "erros": 0, "nota": "P95 dobrou vs baseline" },
+    { "concorrencia": 16, "vazao_req_s": 25.1, "p50_ms": 611.0,  "p95_ms": 986.5,  "p99_ms": 1299.0, "erros": 0, "nota": "P95 dobrou vs baseline" },
+    { "concorrencia": 32, "vazao_req_s": 23.7, "p50_ms": 1258.5, "p95_ms": 1875.7, "p99_ms": 2124.0, "erros": 0, "nota": "P95 dobrou vs baseline" }
+  ],
+  "baseline_p95_ms": 67.3,
+  "conclusao": "Vazao satura em ~24 req/s (CPU-bound) e nao cresce com mais concorrencia. P95 dobra ja a partir de concorrencia 4. Latencia cresce ~linearmente com a concorrencia (acima de ~2 simultaneas as requisicoes apenas enfileiram). 0 erros/timeouts ate 32 simultaneas. Escalar requer replicas horizontais (~24 req/s por replica) ou GPU/batching, nao mais concorrencia por instancia. P50 morno ~45ms; a 1a requisicao deu ~900ms (cold start de carregamento do modelo, descartado)."
+}
