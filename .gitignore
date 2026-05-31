@@ -15,6 +15,11 @@ whitelist/*.csv
 *.safetensors
 *.onnx
 phishing-api/model/
+models/
+*.zip
+
+# Logs de execução
+explicabilidade/figuras/run.log
 
 # Python
 __pycache__/
