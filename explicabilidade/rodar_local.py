@@ -82,7 +82,13 @@ def savefig(name):
 # --------------------------------------------------------------------------
 # Helpers de transformer (SHAP de texto + atencao)
 # --------------------------------------------------------------------------
-def make_predict_fn(mdl, tok, max_length):
+def make_logit_fn(mdl, tok, max_length):
+    """f(list[str]) -> logits (n, n_classes).
+
+    Explicamos o LOGIT (nao a probabilidade softmax): perto da saturacao o softmax
+    quase nao muda ao mascarar tokens, gerando atribuicoes ~0 ("+0"). O logit tem
+    escala bem maior e produz contribuicoes por token legiveis.
+    """
     def f(texts):
         texts = [str(t) for t in (texts.tolist() if hasattr(texts, "tolist") else texts)]
         enc = tok(texts, return_tensors="pt", padding=True,
@@ -90,13 +96,51 @@ def make_predict_fn(mdl, tok, max_length):
         enc = {k: v.to(device) for k, v in enc.items()}
         with torch.no_grad():
             logits = mdl(**enc).logits
-        return torch.softmax(logits, dim=-1).cpu().numpy()
+        return logits.cpu().numpy()
     return f
+
+
+def _limpar_token(t):
+    """Remove marcadores de subword (## / Ġ) para legibilidade no rotulo."""
+    t = str(t)
+    if t.startswith("##"):
+        return t[2:]
+    return t.replace("Ġ", "").replace("Ċ", "")
+
+
+def barra_tokens_limpa(values, tokens, titulo, fname, topk=15):
+    """Barra horizontal limpa de contribuicao por token (sem dendrograma/+0)."""
+    values = np.asarray(values, dtype=float)
+    tokens = [_limpar_token(t) for t in tokens]
+    absv = np.abs(values)
+    vmax = absv.max() if absv.size else 0.0
+    # mantem so tokens relevantes: top-k por |valor| e acima de 1% do maior
+    cand = [j for j in np.argsort(absv)[::-1][:topk] if vmax > 0 and absv[j] >= 0.01 * vmax]
+    if not cand:
+        cand = list(np.argsort(absv)[::-1][:min(topk, len(values))])
+    cand = sorted(cand, key=lambda j: values[j])  # ordena p/ exibir
+    v = values[cand]
+    labels = [tokens[j] if tokens[j].strip() else "·" for j in cand]
+    colors = ["#ff0051" if x > 0 else "#008bfb" for x in v]
+
+    plt.figure(figsize=(7.5, max(3, len(v) * 0.42)))
+    plt.barh(range(len(v)), v, color=colors)
+    plt.yticks(range(len(v)), labels, fontsize=9)
+    plt.axvline(0, color="k", lw=0.8)
+    span = max(abs(v.min()), abs(v.max())) if v.size else 1.0
+    for i, x in enumerate(v):
+        plt.text(x + (0.01 * span if x >= 0 else -0.01 * span), i, f"{x:+.2f}",
+                 va="center", ha="left" if x >= 0 else "right", fontsize=8,
+                 color=colors[i])
+    plt.xlim(-span * 1.25, span * 1.25)
+    plt.xlabel("contribuicao SHAP p/ logit de phishing")
+    plt.title(titulo, fontsize=9)
+    savefig(fname)
 
 
 def explicar_shap_texto(mdl, tok, exemplos, max_length, phish_idx, label_names, prefixo):
     import shap
-    f = make_predict_fn(mdl, tok, max_length)
+    f = make_logit_fn(mdl, tok, max_length)
     masker = shap.maskers.Text(tok)
     explainer = shap.Explainer(f, masker, output_names=label_names)
     textos = [e[0] for e in exemplos]
@@ -113,9 +157,10 @@ def explicar_shap_texto(mdl, tok, exemplos, max_length, phish_idx, label_names, 
         log(f"  (html do shap pulado: {e})")
 
     for i, (texto, esperado) in enumerate(exemplos):
-        shap.plots.bar(sv[i, :, phish_idx], max_display=20, show=False)
-        plt.title(f"{prefixo} | ex{i} ({esperado}) -> P(phishing)\n{texto[:70]}", fontsize=8)
-        savefig(f"{prefixo}_shap_bar_ex{i}_{esperado}.png")
+        svi = sv[i, :, phish_idx]
+        barra_tokens_limpa(svi.values, svi.data,
+                           f"{prefixo} | ex{i} ({esperado}) -> logit phishing\n{texto[:70]}",
+                           f"{prefixo}_shap_bar_ex{i}_{esperado}.png")
     return sv
 
 
@@ -141,11 +186,20 @@ def explicar_atencao(mdl, tok, texto, max_length, titulo, prefixo, idx):
 
     roll = attention_rollout(atts)
     cls_attn = roll[0].cpu().numpy()
-    order = np.argsort(cls_attn)[::-1][:25]
-    plt.figure(figsize=(7, max(3, len(order) * 0.28)))
-    plt.barh(range(len(order)), cls_attn[order][::-1], color="#cc3333")
-    plt.yticks(range(len(order)), [toks[j] for j in order][::-1], fontsize=8)
-    plt.xlabel("Atencao do [CLS] (rollout)")
+    # remove tokens especiais ([CLS]/[SEP]/[PAD]...) que dominam o rollout e
+    # esmagam os tokens informativos da URL/email
+    especiais = set(tok.all_special_tokens)
+    validos = [j for j in range(len(toks)) if toks[j] not in especiais]
+    if not validos:
+        validos = list(range(len(toks)))
+    cls_v = np.array([cls_attn[j] for j in validos])
+    toks_v = [_limpar_token(toks[j]) for j in validos]
+    sel = np.argsort(cls_v)[::-1][:20]
+    sel = sel[np.argsort(cls_v[sel])]  # exibe do menor p/ maior
+    plt.figure(figsize=(7.5, max(3, len(sel) * 0.32)))
+    plt.barh(range(len(sel)), cls_v[sel], color="#cc3333")
+    plt.yticks(range(len(sel)), [toks_v[j] for j in sel], fontsize=9)
+    plt.xlabel("Atencao do [CLS] (rollout, sem tokens especiais)")
     plt.title(f"{titulo}\n{texto[:70]}", fontsize=9)
     savefig(f"{prefixo}_atencao_tokens_ex{idx}.png")
 
