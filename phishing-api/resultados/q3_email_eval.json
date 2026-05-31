@@ -1,0 +1,55 @@
+{
+  "descricao": "Q3: avaliacao do DistilBERT de e-mail (4 classes) sobre dataset EN rotulado.",
+  "gerado_em": "2026-05-31",
+  "modelo": "cybersectony/phishing-email-detection-distilbert_v2.4.1",
+  "dataset": "zefang-liu/phishing-email-dataset",
+  "n_avaliado": 4000,
+  "phishing": 2000,
+  "legit": 2000,
+  "limiar_api": 0.7,
+  "mapeamento_labels": {
+    "0": "legitimate_email",
+    "1": "phishing_url",
+    "2": "legitimate_url",
+    "3": "phishing_url_alt"
+  },
+  "nota": "EN apenas (sem PT). Possivel sobreposicao treino-teste: o modelo pode ter sido treinado em fontes que incluem este dataset; tratar como teto otimista. A API de producao usa so a estrategia api_prob1 (ignora LABEL_3).",
+  "cenarios": {
+    "api_prob1_thr0.7": {
+      "tp": 1993,
+      "fp": 41,
+      "tn": 1959,
+      "fn": 7,
+      "precision": 0.9798,
+      "recall": 0.9965,
+      "f1": 0.9881,
+      "fpr": 0.0205,
+      "accuracy": 0.988,
+      "mcc": 0.9761
+    },
+    "argmax_classes_1_3": {
+      "tp": 1993,
+      "fp": 41,
+      "tn": 1959,
+      "fn": 7,
+      "precision": 0.9798,
+      "recall": 0.9965,
+      "f1": 0.9881,
+      "fpr": 0.0205,
+      "accuracy": 0.988,
+      "mcc": 0.9761
+    },
+    "soma_p1_p3_thr0.5": {
+      "tp": 1993,
+      "fp": 41,
+      "tn": 1959,
+      "fn": 7,
+      "precision": 0.9798,
+      "recall": 0.9965,
+      "f1": 0.9881,
+      "fpr": 0.0205,
+      "accuracy": 0.988,
+      "mcc": 0.9761
+    }
+  }
+}

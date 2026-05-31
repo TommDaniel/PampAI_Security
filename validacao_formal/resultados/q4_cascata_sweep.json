@@ -1,0 +1,87 @@
+{
+  "descricao": "Q4-completo: captura de p_BERT/p_CatBoost por URL e sweep de pesos/zona da cascata.",
+  "gerado_em": "2026-05-31",
+  "limiar_decisao": 0.65,
+  "n_urls": 1946,
+  "n_zona_incerteza": 178,
+  "zona_capturada": [
+    0.15,
+    0.85
+  ],
+  "peso_producao": 0.6,
+  "nota_escopo": "p_CatBoost capturado so na zona 0,15-0,85; sweep de zona limitado a subconjuntos dessa faixa. TLS/registrar/country/whois_privacy sao constantes (default) tambem em producao.",
+  "cenarios": {
+    "bert_sozinho": {
+      "tp": 895,
+      "fp": 135,
+      "tn": 878,
+      "fn": 38,
+      "precision": 0.8689,
+      "recall": 0.9593,
+      "f1": 0.9119,
+      "fpr": 0.1333,
+      "accuracy": 0.9111,
+      "mcc": 0.8267
+    },
+    "cascata_W0.5_zona0.15-0.85": {
+      "tp": 889,
+      "fp": 116,
+      "tn": 897,
+      "fn": 44,
+      "precision": 0.8846,
+      "recall": 0.9528,
+      "f1": 0.9174,
+      "fpr": 0.1145,
+      "accuracy": 0.9178,
+      "mcc": 0.8381
+    },
+    "cascata_W0.6_zona0.15-0.85": {
+      "tp": 889,
+      "fp": 117,
+      "tn": 896,
+      "fn": 44,
+      "precision": 0.8837,
+      "recall": 0.9528,
+      "f1": 0.917,
+      "fpr": 0.1155,
+      "accuracy": 0.9173,
+      "mcc": 0.8371
+    },
+    "cascata_W0.7_zona0.15-0.85": {
+      "tp": 892,
+      "fp": 118,
+      "tn": 895,
+      "fn": 41,
+      "precision": 0.8832,
+      "recall": 0.9561,
+      "f1": 0.9182,
+      "fpr": 0.1165,
+      "accuracy": 0.9183,
+      "mcc": 0.8395
+    },
+    "cascata_W0.6_zona0.3-0.7": {
+      "tp": 894,
+      "fp": 127,
+      "tn": 886,
+      "fn": 39,
+      "precision": 0.8756,
+      "recall": 0.9582,
+      "f1": 0.915,
+      "fpr": 0.1254,
+      "accuracy": 0.9147,
+      "mcc": 0.8331
+    },
+    "cascata_W0.6_zona0.4-0.6": {
+      "tp": 896,
+      "fp": 135,
+      "tn": 878,
+      "fn": 37,
+      "precision": 0.8691,
+      "recall": 0.9603,
+      "f1": 0.9124,
+      "fpr": 0.1333,
+      "accuracy": 0.9116,
+      "mcc": 0.8278
+    }
+  }
+}
