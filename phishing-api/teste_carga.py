@@ -21,12 +21,38 @@ import json
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
 URLS_TESTE = [
     "https://www.google.com", "http://paypal-verify.xyz/account",
     "https://www.bb.com.br", "http://192.168.1.1.login.xyz/steal",
     "https://www.mercadolivre.com.br", "http://bb-seguranca.ml/acesso",
 ]
+
+# Encurtadores conhecidos (campo 'shortened' das client_features).
+ENCURTADORES = {"bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly"}
+
+
+def extrair_features(url):
+    """Replica as 11 client_features que a extensao envia (ver ClientFeatures em
+    app.py). Sem elas o /predict responde 422. Os valores sao derivados da propria
+    URL para que a inferencia da cascata (BERT + CatBoost) seja representativa."""
+    p = urlparse(url)
+    host = p.hostname or ""
+    query = p.query or ""
+    return {
+        "length": len(url),
+        "dom_length": len(host),
+        "dot": url.count("."),
+        "hyphen": url.count("-"),
+        "slash": url.count("/"),
+        "at": url.count("@"),
+        "params": len([x for x in query.split("&") if x]),
+        "shortened": 1 if host.lower() in ENCURTADORES else 0,
+        "tls": 1 if p.scheme == "https" else 0,
+        "vowels_domain": sum(host.lower().count(v) for v in "aeiou"),
+        "email": 1 if "@" in url else 0,
+    }
 
 
 def uma_requisicao(api_url, payload):
@@ -54,7 +80,10 @@ def percentil(vals, p):
 
 
 def rodar_nivel(api_url, concorrencia, total):
-    cargas = [{"url": URLS_TESTE[i % len(URLS_TESTE)]} for i in range(total)]
+    cargas = []
+    for i in range(total):
+        u = URLS_TESTE[i % len(URLS_TESTE)]
+        cargas.append({"url": u, "client_features": extrair_features(u), "mode": "cascade"})
     t0 = time.perf_counter()
     with ThreadPoolExecutor(max_workers=concorrencia) as ex:
         res = list(ex.map(lambda c: uma_requisicao(api_url, c), cargas))
